@@ -1,0 +1,62 @@
+name: Compile Sketches
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - '.github/workflows/compile.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - '.github/workflows/compile.yml'
+
+jobs:
+  compile-rp2040:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile RP2040 examples
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: rp2040:rp2040:rpipico2
+          platforms: |
+            - name: rp2040:rp2040
+              source-url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          libraries: |
+            - source-path: ./
+            - name: RadioLib
+          sketch-paths: |
+            - examples/RP2040/HomeNode
+            - examples/RP2040/BasicNode
+            - examples/RP2040/RelayNode
+            - examples/RP2040/NodeAckTracking
+            - examples/RP2040/NodeConfiguration
+
+  compile-esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile ESP32 examples
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          libraries: |
+            - source-path: ./
+            - name: RadioLib
+          sketch-paths: |
+            - examples/ESP32/HomeNode
+            - examples/ESP32/BasicNode
+            - examples/ESP32/RelayNode
+            - examples/ESP32/NodeAckTracking
+            - examples/ESP32/NodeConfiguration

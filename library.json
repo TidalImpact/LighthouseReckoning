@@ -1,0 +1,44 @@
+{
+  "name": "LighthouseReckoning",
+  "version": "1.0.0",
+  "description": "LoRa mesh routing protocol with automatic neighbor discovery, unicast routing toward a Home node, and hop-by-hop delivery confirmation via DATA_RES acknowledgments.",
+  "keywords": ["lora", "mesh", "routing", "radiolib", "wireless", "sx1262", "iot"],
+  "authors": [
+    {
+      "name": "Fynn Jannis Schulz",
+      "email": "fynnsscp009@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TidalImpact/LighthouseReckoning.git"
+  },
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": ["*"],
+  "dependencies": {
+    "jgromes/RadioLib": "^6.0.0"
+  },
+  "headers": "LighthouseReckoning.h",
+  "export": {
+    "include": [
+      "LighthouseReckoning.h",
+      "LighthouseReckoning.cpp",
+      "LHR_TypeDef.h",
+      "LHR_Packet.h",
+      "LHR_Routing.h",
+      "LHR_Routing.cpp",
+      "LHR_Rx.h",
+      "LHR_Rx.cpp",
+      "LHR_Tx.h",
+      "LHR_Tx.cpp",
+      "LHR_DutyCycle.h",
+      "LHR_DutyCycle.cpp",
+      "examples",
+      "keywords.txt",
+      "library.properties",
+      "LICENSE"
+    ]
+  }
+}

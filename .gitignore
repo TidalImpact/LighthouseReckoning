@@ -1,0 +1,20 @@
+# Arduino Library Development file
+.development
+
+# Atom
+*.tags
+*.tags1
+
+# VS Code
+.vscode
+.idea/
+
+# Build output
+**/build/
+
+# Compiled binaries
+*.bin
+*.elf
+*.map
+*.uf2
+*.hex
