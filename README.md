@@ -29,6 +29,7 @@ is individually confirmed and retried on failure.
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Documentation](#documentation)
+- [Roadmap](#roadmap)
 - [Security](#security)
 - [Contributing](#contributing)
 - [License](#license)
@@ -205,6 +206,10 @@ above work out of the box without touching any of this.
   behind it, if you want to see the routing behave under an actual
   forced 4-hop chain rather than just take the spec's word for it.
 
+## Roadmap
+
+See [Roadmap.md](Roadmap.md) for the planned development roadmap, including upcoming experimental features and future releases.
+
 ## Security
 
 We intentionally kept V1 focused strictly on getting
@@ -229,6 +234,6 @@ The Lower Saxony Ministry for Science and Culture (Germany) funds the "Central L
 
 ## Author
 
-Creator / Lead Developer: Fynn Jannis Schulz.
+Creator / Lead Developer: Fynn Jannis Schulz
 
 Co-Design and field application setup: Jan Schulz
