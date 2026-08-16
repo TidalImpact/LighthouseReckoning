@@ -199,7 +199,7 @@ Every Node maintains information about neighbors it has directly heard
 from.
 
 > **Reference implementation:** neighbor storage is a fixed-size array of
-> up to `LHR_MAX_NEIGHBORS` entries (default 50; reduce via a project-level
+> up to `LHR_MAX_NEIGHBORS` entries (default 8; reduce via a project-level
 > `#define` on memory-constrained targets). Each entry tracks Node ID, Hop
 > Count, signal strength, and last-seen time. When full, a newly-heard
 > neighbor displaces the current worst entry (highest Hop Count, then

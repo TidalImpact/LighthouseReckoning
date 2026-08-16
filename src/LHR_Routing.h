@@ -33,10 +33,10 @@
 
 #ifndef LHR_MAX_NEIGHBORS
   // Max entries in neighbor table. Each entry is sizeof(lhr_neighbor_t)
-  // (16 bytes) — 50 entries costs 800 bytes RAM. Reduce on
+  // (16 bytes) — 8 entries costs 128 bytes RAM. Reduce on
   // memory-constrained targets (e.g. AVR) via a project-level #define
   // before including this header.
-  #define LHR_MAX_NEIGHBORS (50)  // Max entries in neighbor table
+  #define LHR_MAX_NEIGHBORS (8)  // Max entries in neighbor table
 #endif
 
 #ifndef LHR_NEIGHBOR_TIMEOUT_BEACONS
