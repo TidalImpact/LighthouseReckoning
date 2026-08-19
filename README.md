@@ -1,239 +1,101 @@
-# Lighthouse Reckoning
+# LighthouseReckoning - LoRa Mesh Networking for Arduino, ESP32 and RP2040
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-informational.svg)
-![Platform](https://img.shields.io/badge/platform-Arduino%20%7C%20RP2040%20%7C%20ESP32-lightgrey.svg)
-![RadioLib](https://img.shields.io/badge/built%20on-RadioLib-orange.svg)
+LighthouseReckoning is a LoRa mesh networking library for Arduino-family microcontrollers. It lets any number of sensor or relay nodes automatically find a multi-hop path back to a single "Home" node, without Wi-Fi or the internet.
 
-**A LoRa mesh networking library for Arduino-family microcontrollers.**
-One **Home** node collects application data from any number of
-**Sensor/Relay** nodes spread across a multi-hop LoRa mesh — each node
-discovers its own route to Home automatically, and every hop along the way
-is individually confirmed and retried on failure.
+## Why "Lighthouse Reckoning"?
 
-| | |
-|---|---|
-| **Topology** | 1 Home node, *N* Sensor/Relay nodes |
-| **Transport** | LoRa, via [RadioLib](https://github.com/jgromes/RadioLib) |
-| **Delivery model** | Multi-hop, hop-by-hop confirmed |
-| **DATA header overhead** | 16 bytes |
-| **License** | MIT |
+The idea behind the name: a lighthouse doesn't go looking for ships, it just stands still so ships can find their way home. The **Home** node works the same way. It doesn't move and doesn't need to discover anyone; it's simply the point every other device is trying to reach.
 
-## Contents
+Every other device is a **vessel**. Most of them can't reach Home directly, so they rely on nearby vessels to relay their data, hop by hop, the way a signal might travel down a coastline. "Reckoning" is the navigational term for constantly figuring out the best next step from whatever information is available right now, which is exactly what the routing layer does as neighbors, signal strength, and hop counts change over time.
 
-- [Why Lighthouse Reckoning?](#why-lighthouse-reckoning)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Supported Hardware](#supported-hardware)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Documentation](#documentation)
-- [Roadmap](#roadmap)
-- [Security](#security)
-- [Contributing](#contributing)
-- [License](#license)
-- [Research Use](#research-use)
-- [Author](#author)
+## Getting Started
 
-## Why Lighthouse Reckoning?
+LighthouseReckoning is a software library for Arduino, ESP32, RP2040 and other Arduino-compatible boards. Once installed, it turns your boards into a self-routing mesh: one Home node collects data, and any number of Sensor/Relay nodes send data toward it, automatically finding the shortest available path.
 
-The name derives from an old idea: a lighthouse does not look for
-ships, it just stands there, motionless, so ships can find their way home.
-That's basically the whole network at a glance. The **Home**
-node is the lighthouse. It doesn't move, doesn't need to discover
-anyone, it's simply the point every other device is trying to reach.
-Everything else is a **vessel**. Most of them can't see the lighthouse
-directly; they're out of range, blocked by something, or too far away.
-They lean on the information from other vessels in the vicinity and get
-relayed home hop by hop. In the same way a signal might get passed down a
-coastline. Therefore, every node is both a vessel finding its own way *and*,
-whenever it can, a navigational landmark by showing the distance to home.
+This guide covers installing and using LighthouseReckoning with the Arduino IDE or PlatformIO.
 
-**Reckoning** is the other half of it. It is the old navigational term for
-working out where you are and which navigation decision should be made next,
-using whatever information happens to be available right now. That's exactly
-what the routing layer is doing under the hood: it constantly re-evaluates
-the best path to Home as neighbors may come and go, signal strengths shift,
-and hop counts change.
+## What You Need
 
-A single LoRa link is straightforward. Once several devices
-communicate across multiple hops, a concept for routing, 
-retries, and loop avoidance becomes inevitable.
-Lighthouse Reckoning handles the routing and reliability
-layer, reducing application programming to a few commands
-like `sendData()`, `update()` and `onDataReceived()`
-
-## Features
-
-- Automatic multi-hop route to Home via periodic and reactive neighbor beacons
-- Hop-by-hop confirmations instead of end-to-end ACKs. Each transmission is confirmed by the next hop, without requiring Home to maintain return paths to individual nodes.
-- Non-blocking and interrupt-driven: one `update()` call per loop is enough, nothing blocks the radio
-- Optional duty cycle budgeting depending on region regulations
-- Compact wire format with a 2-byte minimum packet size and a 16-byte DATA header. The library has no dependencies beyond RadioLib.
-
-## Architecture
-
-Every node tracks its distance to Home in hops and advertises it to its
-neighbors. Each node then picks whichever neighbor offers the shortest
-resulting path as its own next hop — so data always moves one hop closer
-to Home, without any node needing a full map of the network.
-
-```mermaid
-flowchart TB
-    Home(("Home<br/>0 hops"))
-    R1["Relay A<br/>1 hop"]
-    R2["Relay B<br/>1 hop"]
-    S1["Sensor C<br/>2 hops"]
-    S2["Sensor D<br/>2 hops"]
-    S3["Sensor E<br/>2 hops"]
-
-    R1 <--> Home
-    R2 <--> Home
-    S1 <--> R1
-    S2 <--> R1
-    S3 <--> R2
-
-    classDef home fill:#2b6cb0,stroke:#1a365d,color:#fff;
-    classDef relay fill:#38a169,stroke:#22543d,color:#fff;
-    classDef sensor fill:#718096,stroke:#2d3748,color:#fff;
-    class Home home;
-    class R1,R2 relay;
-    class S1,S2,S3 sensor;
-```
-
-There's no end-to-end acknowledgment — Sensor C never learns whether its
-packet reached Home. What it does know is that Relay A confirmed *that
-specific hop*; Relay A separately learns whether Home confirmed the next
-one. Reliability is built from that chain of independently confirmed hops,
-not from tracking the packet's whole journey.
-
-## Supported Hardware
-
-Runs on any Arduino-compatible platform, tested on RP2040 and ESP32.
-Channel Activity Detection and the single-DIO1-interrupt design have
-been validated on the SX126x radio family (e.g. SX1262); other
-RadioLib-supported radios are expected to work for basic send/receive, but
-their CAD and interrupt behavior haven't been separately verified.
+- A computer with the Arduino IDE or PlatformIO installed (Windows, macOS, or Linux)
+- An Arduino-compatible microcontroller board (tested on RP2040 and ESP32)
+- A LoRa radio module supported by [RadioLib](https://github.com/jgromes/RadioLib) — validated on the SX126x family (e.g. SX1262); other RadioLib-supported radios should work for basic send/receive
+- A USB cable to connect the board to your computer
+- Basic familiarity with the Arduino IDE (installing libraries, selecting a board, uploading a sketch)
 
 ## Installation
 
-1. Install [RadioLib](https://github.com/jgromes/RadioLib) (via the
-   Arduino Library Manager or PlatformIO).
-2. Clone or download this repository into your Arduino `libraries/` folder
-   (or add it as a PlatformIO `lib_deps` entry pointing at this repo).
-3. `#include <LighthouseReckoning.h>` alongside your RadioLib radio driver.
+1. Install [RadioLib](https://github.com/jgromes/RadioLib) via the Arduino Library Manager or PlatformIO — it's the only dependency.
+2. Download or clone this repository into your Arduino `libraries` folder (or add it as a PlatformIO `lib_deps` entry pointing at this repo).
+3. Include it in your sketch alongside your RadioLib radio driver: `#include <LighthouseReckoning.h>`
 
-## Quick Start
+## Usage
 
-Pin numbers below are placeholders for your board's actual wiring. This
-is just enough to show the shape of the API — for complete, working
-sketches see [`examples/`](examples), e.g.
-[`examples/RP2040/BasicNode`](examples/RP2040/BasicNode) for a
-Sensor/Relay node and [`examples/RP2040/HomeNode`](examples/RP2040/HomeNode)
-for the Home node (ESP32 equivalents live under
-[`examples/ESP32`](examples/ESP32)).
+There are two kinds of node: exactly one **Home** node, and any number of **Sensor/Relay** nodes.
 
-```cpp
-#include <RadioLib.h>
-#include <LighthouseReckoning.h>
+1. **Connect your board:** Plug your Arduino-compatible board into a USB port on your computer.
+2. **Wire up your LoRa module:** Connect the radio's CS, DIO1, RST, and BUSY pins as required by your board.
+3. **Choose a role:** Call `beginAsNode()` on Sensor/Relay boards, or `beginAsHome()` on the single Home board.
+4. **Give each node an ID:** Every node needs a unique Node ID (any value except `0x00000000`).
+5. **Upload and run:** Call `update()` once per loop; it's non-blocking, so it never stalls your other code. Nodes automatically beacon their distance to Home and route data toward it hop by hop.
+6. **Send and receive data:** Use `sendData()` on nodes, and handle incoming payloads on the Home node with an `onDataReceived()` callback.
 
-#define PIN_CS    17
-#define PIN_DIO1  20
-#define PIN_RST   21
-#define PIN_BUSY  22
+Full working examples are in [`examples/RP2040/BasicNode`](https://github.com/TidalImpact/LighthouseReckoning/blob/main/examples/RP2040/BasicNode) and [`examples/RP2040/HomeNode`](https://github.com/TidalImpact/LighthouseReckoning/blob/main/examples/RP2040/HomeNode), with ESP32 equivalents under [`examples/ESP32`](https://github.com/TidalImpact/LighthouseReckoning/blob/main/examples/ESP32).
 
-SX1262 radio = new Module(PIN_CS, PIN_DIO1, PIN_RST, PIN_BUSY);
-LighthouseReckoning lhr;
+## Features
 
-void onRadioIrq() { lhr.handleDio1Rise(); }
-
-void setup() {
-  radio.begin();
-  // configure frequency, spreading factor, bandwidth, coding rate, and
-  // power on `radio` to match your region's regulations
-
-  lhr.beginAsNode(&radio, 0xA1B2C3D4);   // any Node ID except 0x00000000
-  attachInterrupt(digitalPinToInterrupt(PIN_DIO1), onRadioIrq, RISING);
-}
-
-void loop() {
-  lhr.update();   // call this on every loop iteration, it's non-blocking
-
-  // sendData() should NOT be called every loop iteration — it would be
-  // rejected with LHR_ERR_BUSY while a previous packet is still awaiting
-  // confirmation. Send on your own interval instead:
-  static unsigned long lastSendMs = 0;
-  if (millis() - lastSendMs >= 60000) {   // e.g. once every 60s
-    uint8_t payload[] = { 0x01, 0x02, 0x03 };
-    lhr.sendData(payload, sizeof(payload));
-    lastSendMs = millis();
-  }
-}
-```
-
-The Home node looks almost the same, just `beginAsHome()` instead of
-`beginAsNode()`, plus an `onDataReceived()` callback to actually get the
-incoming payloads — see
-[`examples/RP2040/HomeNode`](examples/RP2040/HomeNode) for the full
-version.
+- **Automatic multi-hop routing:** Nodes discover their own path to Home via periodic and reactive neighbor beacons — no manual route configuration.
+- **Hop-by-hop reliability:** Each transmission is confirmed by the next hop rather than relying on a single end-to-end acknowledgment, so Home doesn't need to track return paths to every node.
+- **Non-blocking:** One `update()` call per loop is enough; the radio never blocks your other code.
+- **Optional duty cycle budgeting** for regions with airtime regulations.
+- **Small footprint:** 2-byte minimum packet size, 16-byte DATA header, and no dependencies beyond RadioLib.
 
 ## Configuration
 
-All optional — sensible defaults are used otherwise, so the examples
-above work out of the box without touching any of this.
+Everything below is optional — the defaults are sensible enough that the examples work out of the box.
 
-| Setting | Method | Default |
-|---|---|---|
-| TTL for outgoing DATA | `setTTL()` | 8 |
-| Resend delay / RFCN wait | `setRetryDelays()` | 5000 ms / 5000 ms |
-| Max retry cycles | `setMaxLocalRetries()` | 3 |
-| Beacon interval | `setBeaconInterval()` | 60000 ms |
-| TX watchdog timeout | `setTxWatchdogTimeout()` | 10000 ms |
-| Duty cycle limiting | `toggleDutyCycleLimit()` / `setDutyCycleLimit()` | off; 1 % (EU868) when enabled |
+| Setting                  | Method                                           | Default                       |
+| ------------------------ | ------------------------------------------------ | ------------------------------ |
+| TTL for outgoing DATA    | `setTTL()`                                       | 8                              |
+| Resend delay / RFCN wait | `setRetryDelays()`                               | 5000 ms / 5000 ms              |
+| Max retry cycles         | `setMaxLocalRetries()`                           | 3                              |
+| Beacon interval          | `setBeaconInterval()`                            | 60000 ms                       |
+| TX watchdog timeout      | `setTxWatchdogTimeout()`                         | 10000 ms                       |
+| Duty cycle limiting      | `toggleDutyCycleLimit()` / `setDutyCycleLimit()` | off; 1% (EU868) when enabled   |
+
+## Troubleshooting
+
+- **Board or radio not detected:** Check your wiring against the pins used in `beginAsNode()`/`beginAsHome()`, and make sure RadioLib is installed and initialized before LighthouseReckoning.
+- **`sendData()` returns `LHR_ERR_BUSY`:** A previous packet is still awaiting confirmation — don't call `sendData()` every loop iteration, send on your own interval instead.
+- **Nodes never reach Home:** Make sure each node is within range of at least one other node that eventually connects to Home, and that all nodes share the same radio settings (frequency, spreading factor, bandwidth, coding rate).
+- **Updates:** Check the [CHANGELOG](https://github.com/TidalImpact/LighthouseReckoning/blob/main/CHANGELOG.md) for release notes and known limitations.
 
 ## Documentation
 
-- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — the protocol specification:
-  packet formats, routing, reliability, and timing, independent of this
-  implementation.
-- **[docs/PROTOCOL_REFERENCE.md](docs/PROTOCOL_REFERENCE.md)** — the same
-  specification annotated with this library's constants, defaults, and
-  full public API.
-- **[CHANGELOG.md](CHANGELOG.md)** — release changes and known limitations.
-- **[fieldtests/2026-08-09_forced-chain-test](fieldtests/2026-08-09_forced-chain-test)** —
-  a real multi-hop field test with the raw radio log and the analysis
-  behind it, if you want to see the routing behave under an actual
-  forced 4-hop chain rather than just take the spec's word for it.
-
-## Roadmap
-
-See [Roadmap.md](Roadmap.md) for the planned development roadmap, including upcoming experimental features and future releases.
+- **[docs/PROTOCOL.md](https://github.com/TidalImpact/LighthouseReckoning/blob/main/docs/PROTOCOL.md)** — the protocol specification: packet formats, routing, reliability, and timing, independent of this implementation.
+- **[docs/PROTOCOL_REFERENCE.md](https://github.com/TidalImpact/LighthouseReckoning/blob/main/docs/PROTOCOL_REFERENCE.md)** — the same spec annotated with this library's constants, defaults, and full public API.
+- **[fieldtests/2026-08-09_forced-chain-test](https://github.com/TidalImpact/LighthouseReckoning/blob/main/fieldtests/2026-08-09_forced-chain-test)** — a real multi-hop field test with the raw radio log and analysis, showing the routing behave under a forced 4-hop chain.
 
 ## Security
 
-We intentionally kept V1 focused strictly on getting
-the core distance-vector routing and multi-hop 
-retries solid first.
-Encryption is planned for a later version.
-
-## Contributing
-
-Bug reports and feature requests are welcome. The templates in
-[`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE) will guide you through
-what's useful to include — hardware, radio configuration, logs, and so on
-for bug reports.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+Version 1 is intentionally focused on getting core distance-vector routing and multi-hop retries solid first. Encryption is planned for a later version and is **not** implemented yet — don't rely on this for confidential data in its current state.
 
 ## Research Use
 
-The Lower Saxony Ministry for Science and Culture (Germany) funds the "Central Laboratories for Digital Innovations in Lower Saxony" (Zentrallabore für Digitale Innovationen in Niedersachsen - ZDIN). Within the ZDIN, the Central Laboratory for Water employs the Lighthouse Reckoning protocol in the sub-project Adam4EvesWine (Ad-hoc Data Acquisition Mesh for Enhanced Versatile Explorations of Waters In Near-shore Extent).
+The Lower Saxony Ministry for Science and Culture (Germany) funds the "Central Laboratories for Digital Innovations in Lower Saxony" (ZDIN). Within ZDIN, the Central Laboratory for Water uses the Lighthouse Reckoning protocol in the sub-project Adam4EvesWine (Ad-hoc Data Acquisition Mesh for Enhanced Versatile Explorations of Waters In Near-shore Extent).
+
+## Contributing
+
+Bug reports and feature requests are welcome. The issue templates in [`.github/ISSUE_TEMPLATE`](https://github.com/TidalImpact/LighthouseReckoning/blob/main/.github/ISSUE_TEMPLATE) will guide you through what's useful to include — hardware, radio configuration, and logs for bug reports.
 
 ## Author
 
-Creator / Lead Developer: Fynn Jannis Schulz
+- **Creator / Lead Developer:** Fynn Jannis Schulz
+- **Co-Design and field application setup:** Jan Schulz
 
-Co-Design and field application setup: Jan Schulz
+## License
+
+This project is licensed under the MIT License.
+
+## Keywords
+
+Arduino, embedded, ESP32, IoT, LoRa, LoRa mesh, mesh networks, RadioLib, RP2040, SX1262
