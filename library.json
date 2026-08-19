@@ -1,8 +1,16 @@
 {
   "name": "LighthouseReckoning",
   "version": "1.0.0",
-  "description": "LoRa mesh routing protocol with automatic neighbor discovery, unicast routing toward a Home node, and hop-by-hop delivery confirmation via DATA_RES acknowledgments.",
-  "keywords": ["lora", "mesh", "routing", "radiolib", "wireless", "sx1262", "iot"],
+  "description": "Lightweight LoRa mesh networking with automatic multi-hop routing toward a Home node, neighbor discovery, and hop-by-hop delivery acknowledgments.",
+  "keywords": [
+    "lora",
+    "mesh",
+    "routing",
+    "radiolib",
+    "wireless",
+    "sx1262",
+    "iot"
+  ],
   "authors": [
     {
       "name": "Fynn Jannis Schulz",
@@ -16,7 +24,10 @@
   },
   "license": "MIT",
   "frameworks": "arduino",
-  "platforms": ["*"],
+  "platforms": [
+    "espressif32",
+    "raspberrypi"
+  ],
   "dependencies": {
     "jgromes/RadioLib": "^6.0.0"
   },
