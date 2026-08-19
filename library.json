@@ -50,6 +50,9 @@
       "keywords.txt",
       "library.properties",
       "LICENSE"
-    ]
+    ],
+    "exclude": [
+      "examples/**/build/**"
+    ] 
   }
 }
