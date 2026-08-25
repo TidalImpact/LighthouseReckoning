@@ -175,6 +175,18 @@ typedef enum lhr_err : uint8_t {
     LHR_ERR_WRONG_ROLE            =  9,   // Operation is not supported by the current node role
     LHR_ERR_NOT_CONFIGURED        =  10,  // begin() was not called before use
     LHR_ERR_DUTY_CYCLE_EXHAUSTED  =  11,  // Duty cycle budget exhausted, cannot send now
+
+    // --- Encryption / LHR_Encryption ---
+    LHR_ERR_INVALID_KEY_LEN       =  12,  // Key length doesn't match cipher requirement (e.g. != 16 for AES-128)
+    LHR_ERR_NO_KEY_SET            =  13,  // enableEncryption() called before setEncryptionKey()
+    LHR_ERR_ENCRYPT_FAIL          =  14,  // Underlying encrypt operation failed
+    LHR_ERR_DECRYPT_FAIL          =  15,  // Underlying decrypt operation failed
+    LHR_ERR_AUTH_FAIL             =  16,  // Auth tag mismatch — packet rejected (tampered or wrong key)
+
+    // --- Encryption Storage / LHR_EncryptionStore ---
+    LHR_ERR_STORE_NOT_INIT        =  17,  // beginStore() not called before use
+    LHR_ERR_STORE_WRITE_FAIL      =  18,  // NVS/EEPROM/Flash write failed
+    LHR_ERR_STORE_READ_FAIL       =  19,  // NVS/EEPROM/Flash read failed
 } lhr_err_t;
 
 typedef enum lhr_tx_result : uint8_t {

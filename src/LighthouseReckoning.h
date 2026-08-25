@@ -60,6 +60,7 @@
 #include "LHR_Routing.h"
 #include "LHR_Tx.h"
 #include "LHR_Rx.h"
+#include "LHR_EncryptionStore.h"
 
 
 // ================================================================
@@ -762,6 +763,48 @@ private:
 
     // Duty cycle accounting
     void _recordDutyCycleUsage(size_t len);
+
+
+    // ------------------------------------------------------------------
+    // Encryption
+    // ------------------------------------------------------------------
+    
+    #if LHR_ENCRYPTION_SUPPORTED
+
+        /**
+         * @brief Initialise the persistent storage backend for the nonce counter.
+         * @return true on success, false if storage could not be opened.
+         */
+        bool _storageInit();
+
+        /**
+         * @brief Load the 32-bit nonce counter from permanent storage.
+         * @param counter Output: loaded value (set to 0 on first run).
+         * @return true if a stored value was found, false on first run.
+         */
+        bool _loadNonceCounter(uint32_t* counter);
+
+        /**
+         * @brief Store the 32-bit nonce counter permanently.
+         * @param counter Value to persist.
+         * @return true on success.
+         */
+        bool _storeNonceCounter(uint32_t counter);
+
+        /**
+         * @brief Set the nonce counter to a specific value and store it.
+         * @param counter New value.
+         * @return true on success.
+         */
+        bool _setNonceCounter(uint32_t counter);
+
+        /**
+         * @brief Reset the nonce counter to 0 and store it.
+         * @return true on success.
+         */
+        bool _resetNonceCounter();
+
+    #endif // LHR_ENCRYPTION_SUPPORTED
 
 
     // ------------------------------------------------------------------
