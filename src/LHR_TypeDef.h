@@ -66,6 +66,23 @@
 
 
 // ================================================================
+// Platform capability — persistent counter support
+// ================================================================
+//
+// Does this MCU provide the non-volatile storage we need for a
+// monotonic nonce counter?  If not, the entire security path is
+// compiled out.
+//
+
+#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || \
+    defined(ARDUINO_ARCH_RP2040) || defined(PICO_RP2040) || defined(PICO_RP2350)
+  #define LHR_ENCRYPTION_SUPPORTED 1
+#else
+  #define LHR_ENCRYPTION_SUPPORTED 0   // classic AVR Arduinos etc. → no encryption code
+#endif
+
+
+// ================================================================
 // Platform Abstraction — Critical Sections
 // ================================================================
 

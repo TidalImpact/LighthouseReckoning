@@ -60,6 +60,7 @@
 #include "LHR_Routing.h"
 #include "LHR_Tx.h"
 #include "LHR_Rx.h"
+#include "LHR_Encryption.h"
 #include "LHR_EncryptionStore.h"
 
 
@@ -402,7 +403,50 @@ public:
      *           The buffer is only valid for the duration of the callback call.
      */
     void onDataReceived(LHR_DataReceivedCallback cb);
+    
+    
+    // ------------------------------------------------------------------
+    // Encryption
+    // ------------------------------------------------------------------
+    
+    #if LHR_ENCRYPTION_SUPPORTED
 
+         /**
+         * @brief Set the AES-128 encryption key.
+         *
+         * Copies the given key into internal storage. Does not enable
+         * encryption by itself — call enableEncryption(true) afterwards.
+         *
+         * @param key Pointer to the key buffer. Must not be null.
+         * @param len Length of the key in bytes. Must be exactly 16 (AES-128).
+         * @return LHR_OK on success.
+         *         LHR_ERR_ARGS if key is null.
+         *         LHR_ERR_INVALID_KEY_LEN if len != 16.
+         */
+        lhr_err_t   setEncryptionKey(const uint8_t* key,  size_t len);
+
+        /**
+         * @brief Enable or disable AES-128 packet encryption.
+         *
+         * Disabling always succeeds. Enabling requires a key to have been
+         * set beforehand via setEncryptionKey() — otherwise the call fails
+         * and encryption remains disabled.
+         *
+         * @param state true to enable encryption, false to disable it.
+         * @return LHR_OK on success.
+         *         LHR_ERR_NO_KEY_SET if enabling was requested but no key
+         *         has been set yet.
+         */
+        lhr_err_t   enableEncryption(bool state);
+
+        /**
+         * @brief Check whether packet encryption is currently enabled.
+         *
+         * @return true if encryption is active for outgoing/incoming packets.
+         */ 
+        bool        isEncryptionEnabled() {return _encryptionEnabled;}
+
+    #endif // LHR_ENCRYPTION_SUPPORTED
 
     // ------------------------------------------------------------------
     // External RadioLib API Connections
@@ -622,6 +666,19 @@ private:
 
     uint32_t _randState = 0;
 
+
+    // ------------------------------------------------------------------
+    // Encryption
+    // ------------------------------------------------------------------
+    
+    #if LHR_ENCRYPTION_SUPPORTED
+
+        bool     _encryptionEnabled = false;
+        bool     _encryptionKeySet  = false;
+        uint8_t  _encryptionKey[16];
+        uint32_t _encryptionNonceCounter;
+
+    #endif // LHR_ENCRYPTION_SUPPORTED
 
 
 

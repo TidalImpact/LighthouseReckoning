@@ -14,8 +14,8 @@
 
 #include "LighthouseReckoning.h"
 
-#if LHR_ENCRYPTION_SUPPORTED
 
+#if LHR_ENCRYPTION_SUPPORTED
 
 // ================================================================
 // ESP32 — Preferences / NVS
@@ -90,6 +90,7 @@ bool LighthouseReckoning::_loadNonceCounter(uint32_t* counter) {
 
     EEPROM.get(COUNTER_ADDR, *counter);
 
+    // 0xFFFFFFFF = erased/uninitialised flash pattern → treat as "no value stored yet"
     if (*counter == 0xFFFFFFFFUL) {
         *counter = 0;
         return false;
