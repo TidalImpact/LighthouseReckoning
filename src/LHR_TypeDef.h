@@ -156,6 +156,14 @@ constexpr uint8_t LHR_SEEN_CACHE_SIZE = 8;
 // many concurrent senders are expected to produce overlapping retries.
 
 
+constexpr uint32_t LHR_NONCE_BATCH_SIZE = 100;
+// Nonce counter reservation batch size for persistent storage writes.
+// On enableEncryption() and whenever the RAM counter catches up to the
+// last reserved boundary, the store is advanced by this amount so a
+// crash between writes can never cause nonce reuse — worst case this
+// many counter values are skipped
+
+
 // ================================================================
 // Protocol Constants — Duty Cycle
 // ================================================================
@@ -199,11 +207,12 @@ typedef enum lhr_err : uint8_t {
     LHR_ERR_ENCRYPT_FAIL          =  14,  // Underlying encrypt operation failed
     LHR_ERR_DECRYPT_FAIL          =  15,  // Underlying decrypt operation failed
     LHR_ERR_AUTH_FAIL             =  16,  // Auth tag mismatch — packet rejected (tampered or wrong key)
+    LHR_ERR_NONCE_EXHAUSTED       =  17,  
 
     // --- Encryption Storage / LHR_EncryptionStore ---
-    LHR_ERR_STORE_NOT_INIT        =  17,  // beginStore() not called before use
-    LHR_ERR_STORE_WRITE_FAIL      =  18,  // NVS/EEPROM/Flash write failed
-    LHR_ERR_STORE_READ_FAIL       =  19,  // NVS/EEPROM/Flash read failed
+    LHR_ERR_STORE_NOT_INIT        =  18,  // beginStore() not called before use
+    LHR_ERR_STORE_WRITE_FAIL      =  19,  // NVS/EEPROM/Flash write failed
+    LHR_ERR_STORE_READ_FAIL       =  20,  // NVS/EEPROM/Flash read failed
 } lhr_err_t;
 
 typedef enum lhr_tx_result : uint8_t {

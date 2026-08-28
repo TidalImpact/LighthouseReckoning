@@ -677,6 +677,7 @@ private:
         bool     _encryptionKeySet  = false;
         uint8_t  _encryptionKey[16];
         uint32_t _encryptionNonceCounter;
+        uint32_t _encryptionNonceReserved;
 
     #endif // LHR_ENCRYPTION_SUPPORTED
 
@@ -827,6 +828,33 @@ private:
     // ------------------------------------------------------------------
     
     #if LHR_ENCRYPTION_SUPPORTED
+
+        /**
+         * @brief Initialise the RAM nonce counter from persistent storage and
+         *        reserve the next batch (+100) in the store.
+         *
+         * Must be called before the first _nextNonceCounter() call, typically
+         * from enableEncryption(true).
+         *
+         * @return LHR_OK on success.
+         *         LHR_ERR_STORE_NOT_INIT if the storage backend could not be opened.
+         *         LHR_ERR_STORE_WRITE_FAIL if the initial reservation write failed.
+         */
+        lhr_err_t _initNonceCounter();
+
+
+        /**
+         * @brief Get the next nonce counter value and advance the RAM counter.
+         *
+         * Transparently persists a new reservation batch (+100) to storage
+         * whenever the RAM counter reaches the currently reserved boundary.
+         *
+         * @param outCounter Output: the counter value to use for this packet.
+         * @return LHR_OK on success.
+         *         LHR_ERR_NONCE_EXHAUSTED if the counter would overflow.
+         *         LHR_ERR_STORE_WRITE_FAIL if a required batch write failed.
+         */
+        lhr_err_t _nextNonceCounter(uint32_t* outCounter);
 
         /**
          * @brief Initialise the persistent storage backend for the nonce counter.

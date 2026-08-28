@@ -32,6 +32,10 @@ lhr_err_t LighthouseReckoning::enableEncryption(bool state){
     if (!_encryptionKeySet) {
         return LHR_ERR_NO_KEY_SET;
     }
+    lhr_err_t err = _initNonceCounter();
+    if (err != LHR_OK) {
+        return err;
+    }
     _encryptionEnabled = true;
     return LHR_OK;
 }
@@ -46,6 +50,47 @@ lhr_err_t LighthouseReckoning::setEncryptionKey(const uint8_t* key, size_t len){
     } 
     memcpy(_encryptionKey, key, 16);
     _encryptionKeySet = true;
+    return LHR_OK;
+}
+
+
+// ================================================================
+// Nonce Counter Management
+// ================================================================
+
+lhr_err_t LighthouseReckoning::_initNonceCounter() {
+    if (!_storageInit()) {
+        return LHR_ERR_STORE_NOT_INIT;
+    }
+
+    _loadNonceCounter(&_encryptionNonceCounter);   // sets to 0 on first run
+
+    _encryptionNonceReserved = _encryptionNonceCounter + LHR_NONCE_BATCH_SIZE;
+
+    if (!_storeNonceCounter(_encryptionNonceReserved)) {
+        return LHR_ERR_STORE_WRITE_FAIL;
+    }
+
+    return LHR_OK;
+}
+
+lhr_err_t LighthouseReckoning::_nextNonceCounter(uint32_t* outCounter) {
+    if (_encryptionNonceCounter == 0xFFFFFFFFUL) {
+        return LHR_ERR_NONCE_EXHAUSTED;
+    }
+
+    if (_encryptionNonceCounter >= _encryptionNonceReserved) {
+        uint32_t reserved = _encryptionNonceCounter + LHR_NONCE_BATCH_SIZE;
+
+        if (!_storeNonceCounter(reserved)) {
+            return LHR_ERR_STORE_WRITE_FAIL;
+        }
+
+        _encryptionNonceReserved = reserved;
+    }
+
+    *outCounter = _encryptionNonceCounter;
+    _encryptionNonceCounter++;
     return LHR_OK;
 }
 
