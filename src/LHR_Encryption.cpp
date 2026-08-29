@@ -94,4 +94,39 @@ lhr_err_t LighthouseReckoning::_nextNonceCounter(uint32_t* outCounter) {
     return LHR_OK;
 }
 
+// ================================================================
+// Nonce Builder
+// ================================================================
+
+lhr_err_t LighthouseReckoning::_buildNonce(uint8_t* outNonce, uint32_t* outWireCounter){
+    uint32_t nonceCounter = 0;
+    
+    lhr_err_t err = _nextNonceCounter(&nonceCounter);
+    if (err != LHR_OK) {
+        return err;
+    }
+    
+    // Assemble the nonce used to encrypt this packet
+    outNonce[LHR_NONCE_OFFSET_DEVICEID + 0]      =  (_deviceId     >> 24) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_DEVICEID + 1]      =  (_deviceId     >> 16) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_DEVICEID + 2]      =  (_deviceId     >>  8) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_DEVICEID + 3]      =  (_deviceId     >>  0) & 0xFF;
+
+    outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 0] =  (nonceCounter  >> 24) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 1] =  (nonceCounter  >> 16) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 2] =  (nonceCounter  >>  8) & 0xFF;
+    outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 3] =  (nonceCounter  >>  0) & 0xFF;
+
+    outNonce[LHR_NONCE_OFFSET_PADDING + 0]       =  0x00;
+    outNonce[LHR_NONCE_OFFSET_PADDING + 1]       =  0x00;
+    outNonce[LHR_NONCE_OFFSET_PADDING + 2]       =  0x00;
+    outNonce[LHR_NONCE_OFFSET_PADDING + 3]       =  0x00;
+    outNonce[LHR_NONCE_OFFSET_PADDING + 4]       =  0x00;
+
+    // Return the full counter for later packet building
+    *outWireCounter = nonceCounter;
+
+    return LHR_OK;
+}
+
 #endif // LHR_ENCRYPTION_SUPPORTED

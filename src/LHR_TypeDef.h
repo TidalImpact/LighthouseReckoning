@@ -178,6 +178,15 @@ constexpr float LHR_DEFAULT_DUTY_CYCLE_PERCENT = 1.0f;    // EU868 g1 sub-band d
 
 
 // ================================================================
+// Protocol Constants — AES-128-CCM
+// ================================================================
+
+// ── Nonce ────────────────────────────────────────────────────────
+constexpr uint8_t LHR_NONCE_OFFSET_DEVICEID      = 0; // [0..3] Device ID
+constexpr uint8_t LHR_NONCE_OFFSET_NONCE_COUNTER = 4; // [4..7] Nonce Counter
+constexpr uint8_t LHR_NONCE_OFFSET_PADDING       = 8; // [8..12] Padding
+
+// ================================================================
 // Result / Error Enums
 // ================================================================
 
@@ -207,7 +216,7 @@ typedef enum lhr_err : uint8_t {
     LHR_ERR_ENCRYPT_FAIL          =  14,  // Underlying encrypt operation failed
     LHR_ERR_DECRYPT_FAIL          =  15,  // Underlying decrypt operation failed
     LHR_ERR_AUTH_FAIL             =  16,  // Auth tag mismatch — packet rejected (tampered or wrong key)
-    LHR_ERR_NONCE_EXHAUSTED       =  17,  
+    LHR_ERR_NONCE_EXHAUSTED       =  17,  // Nonce counter reached its maximum value
 
     // --- Encryption Storage / LHR_EncryptionStore ---
     LHR_ERR_STORE_NOT_INIT        =  18,  // beginStore() not called before use

@@ -830,6 +830,21 @@ private:
     #if LHR_ENCRYPTION_SUPPORTED
 
         /**
+         * @brief Builds the full CCM nonce for the next outgoing message.
+         *
+         * @warning outWireCounter holds the FULL 4-byte counter. Only the lower
+         *          3 bytes are transmitted on the wire; masking happens at
+         *          packet build time, not here.
+         *
+         * @param[out] outNonce       Buffer for the full nonce (LHR_NONCE_LEN bytes).
+         * @param[out] outWireCounter Full 4-byte counter used for this message.
+         *
+         * @return LHR_OK, LHR_ERR_NONCE_EXHAUSTED, or LHR_ERR_STORE_WRITE_FAIL.
+         */
+        lhr_err_t _buildNonce(uint8_t* outNonce, uint32_t* outWireCounter);
+
+
+        /**
          * @brief Initialise the RAM nonce counter from persistent storage and
          *        reserve the next batch (+100) in the store.
          *
