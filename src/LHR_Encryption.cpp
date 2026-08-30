@@ -45,10 +45,10 @@ lhr_err_t LighthouseReckoning::setEncryptionKey(const uint8_t* key, size_t len){
     if (key == nullptr) {
         return LHR_ERR_ARGS;
     }
-    if (len != 16){
+    if (len != LHR_AES_KEY_LEN){
         return LHR_ERR_INVALID_KEY_LEN;
     } 
-    memcpy(_encryptionKey, key, 16);
+    memcpy(_encryptionKey, key, LHR_AES_KEY_LEN);
     _encryptionKeySet = true;
     return LHR_OK;
 }
@@ -116,12 +116,6 @@ lhr_err_t LighthouseReckoning::_buildNonce(uint8_t* outNonce, uint32_t* outWireC
     outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 1] =  (nonceCounter  >> 16) & 0xFF;
     outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 2] =  (nonceCounter  >>  8) & 0xFF;
     outNonce[LHR_NONCE_OFFSET_NONCE_COUNTER + 3] =  (nonceCounter  >>  0) & 0xFF;
-
-    outNonce[LHR_NONCE_OFFSET_PADDING + 0]       =  0x00;
-    outNonce[LHR_NONCE_OFFSET_PADDING + 1]       =  0x00;
-    outNonce[LHR_NONCE_OFFSET_PADDING + 2]       =  0x00;
-    outNonce[LHR_NONCE_OFFSET_PADDING + 3]       =  0x00;
-    outNonce[LHR_NONCE_OFFSET_PADDING + 4]       =  0x00;
 
     // Return the full counter for later packet building
     *outWireCounter = nonceCounter;

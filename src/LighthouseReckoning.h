@@ -63,6 +63,9 @@
 #include "LHR_Encryption.h"
 #include "LHR_EncryptionStore.h"
 
+#if LHR_ENCRYPTION_SUPPORTED
+  #include "aes128_ccm_backend/aes128_ccm.h"
+#endif
 
 // ================================================================
 // Version

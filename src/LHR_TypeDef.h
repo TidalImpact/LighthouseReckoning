@@ -181,10 +181,15 @@ constexpr float LHR_DEFAULT_DUTY_CYCLE_PERCENT = 1.0f;    // EU868 g1 sub-band d
 // Protocol Constants — AES-128-CCM
 // ================================================================
 
+// ── AES Key ──────────────────────────────────────────────────────
+
+constexpr uint8_t LHR_AES_KEY_LEN = 16; // AES-128 key = 16 bytes
+
 // ── Nonce ────────────────────────────────────────────────────────
+constexpr uint8_t LHR_NONCE_LEN                  = 8; // total nonce length
 constexpr uint8_t LHR_NONCE_OFFSET_DEVICEID      = 0; // [0..3] Device ID
 constexpr uint8_t LHR_NONCE_OFFSET_NONCE_COUNTER = 4; // [4..7] Nonce Counter
-constexpr uint8_t LHR_NONCE_OFFSET_PADDING       = 8; // [8..12] Padding
+
 
 // ================================================================
 // Result / Error Enums
