@@ -833,6 +833,50 @@ private:
     #if LHR_ENCRYPTION_SUPPORTED
 
         /**
+         * @brief Encrypts a single packet payload and produces its MIC.
+         *
+         * Thin wrapper around aes128_ccm_encrypt() that fixes the key, nonce
+         * length, and tag length to this device's configuration.
+         *
+         * @param[in]  nonce         Full nonce, LHR_NONCE_LEN bytes.
+         * @param[in]  aad           Additional authenticated data (may be nullptr if aadLen == 0).
+         * @param[in]  aadLen        Length of aad.
+         * @param[in]  plaintext     Data to encrypt.
+         * @param[in]  len           Length of plaintext (and outCiphertext).
+         * @param[out] outCiphertext Buffer for the ciphertext, must be >= len bytes.
+         * @param[out] outTag        Buffer for the MIC, must be LHR_MIC_LEN bytes.
+         *
+         * @return LHR_OK on success, LHR_ERR_ENCRYPT_FAIL on failure.
+         */
+        lhr_err_t _ccmEncrypt(const uint8_t* nonce,
+                      const uint8_t* aad, size_t aadLen,
+                      const uint8_t* plaintext, size_t len,
+                      uint8_t* outCiphertext, uint8_t* outTag);
+        
+        /**
+         * @brief Decrypts a single packet payload and verifies its MIC.
+         *
+         * Thin wrapper around aes128_ccm_decrypt() that fixes the key, nonce
+         * length, and tag length to this device's configuration.
+         *
+         * @param[in]  nonce        Full nonce, LHR_NONCE_LEN bytes.
+         * @param[in]  aad          Additional authenticated data (may be nullptr if aadLen == 0).
+         * @param[in]  aadLen       Length of aad.
+         * @param[in]  ciphertext   Data to decrypt.
+         * @param[in]  len          Length of ciphertext (and outPlaintext).
+         * @param[in]  tag          MIC to verify against, LHR_MIC_LEN bytes.
+         * @param[out] outPlaintext Buffer for the plaintext, must be >= len bytes.
+         *                          Zeroed by the underlying library on auth failure.
+         *
+         * @return LHR_OK if the MIC is valid, LHR_ERR_DECRYPT_FAIL otherwise.
+         */
+        lhr_err_t _ccmDecrypt(const uint8_t* nonce,
+                            const uint8_t* aad, size_t aadLen,
+                            const uint8_t* ciphertext, size_t len,
+                            const uint8_t* tag,
+                            uint8_t* outPlaintext);
+                            
+        /**
          * @brief Builds the full CCM nonce for the next outgoing message.
          *
          * @warning outWireCounter holds the FULL 4-byte counter. Only the lower

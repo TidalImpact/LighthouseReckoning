@@ -94,6 +94,7 @@ lhr_err_t LighthouseReckoning::_nextNonceCounter(uint32_t* outCounter) {
     return LHR_OK;
 }
 
+
 // ================================================================
 // Nonce Builder
 // ================================================================
@@ -121,6 +122,43 @@ lhr_err_t LighthouseReckoning::_buildNonce(uint8_t* outNonce, uint32_t* outWireC
     *outWireCounter = nonceCounter;
 
     return LHR_OK;
+}
+
+
+// ================================================================
+// AES-128-CCM Encryption Wrapper
+// ================================================================
+
+lhr_err_t LighthouseReckoning::_ccmEncrypt(const uint8_t* nonce,
+                                            const uint8_t* aad, size_t aadLen,
+                                            const uint8_t* plaintext, size_t len,
+                                            uint8_t* outCiphertext, uint8_t* outTag) {
+    int ret = aes128_ccm_encrypt(
+        _encryptionKey, LHR_AES_KEY_LEN,
+        nonce, LHR_NONCE_LEN,
+        aad, (uint32_t)aadLen,
+        plaintext, (uint32_t)len,
+        outCiphertext, outTag, LHR_MIC_LEN
+    );
+
+    return (ret == 0) ? LHR_OK : LHR_ERR_ENCRYPT_FAIL;
+}
+
+lhr_err_t LighthouseReckoning::_ccmDecrypt(const uint8_t* nonce,
+                                            const uint8_t* aad, size_t aadLen,
+                                            const uint8_t* ciphertext, size_t len,
+                                            const uint8_t* tag,
+                                            uint8_t* outPlaintext) {
+    int ret = aes128_ccm_decrypt(
+        _encryptionKey, LHR_AES_KEY_LEN,
+        nonce, LHR_NONCE_LEN,
+        aad, (uint32_t)aadLen,
+        ciphertext, (uint32_t)len,
+        tag, LHR_MIC_LEN,
+        outPlaintext
+    );
+
+    return (ret == 0) ? LHR_OK : LHR_ERR_DECRYPT_FAIL;
 }
 
 #endif // LHR_ENCRYPTION_SUPPORTED
