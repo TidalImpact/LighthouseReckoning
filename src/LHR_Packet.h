@@ -43,7 +43,7 @@ typedef enum lhr_pkt_type : uint8_t {
 
 
 // ================================================================
-// Packet Byte Offsets
+// Packet Byte Offsets — Unencrypted
 // ================================================================
 
 // ── DATA (LHR_PKT_DATA) ─────────────────────────────────────────
@@ -75,7 +75,7 @@ constexpr uint8_t LHR_DATARES_OFFSET_SEQ_NUM  = 10;  // Sequence number (1 byte)
 
 
 // ================================================================
-// Packet Lengths
+// Packet Lengths — Unencrypted
 // ================================================================
 //
 // Derived from the offsets above wherever possible, so header layout
@@ -90,6 +90,67 @@ constexpr uint8_t LHR_MIN_VALID_PACKET_SIZE = 2;  // Minimum size: magic byte + 
 
 
 // ================================================================
+// Packet Byte Offsets — Encrypted
+// ================================================================
+
+// ── DATA ─────────────────────────────────────────────────────────
+
+constexpr uint8_t LHR_DATA_ENC_OFFSET_MAGIC       = 0;  // Start byte (LHR_START_BYTE)
+constexpr uint8_t LHR_DATA_ENC_OFFSET_TYPE        = 1;  // Packet type
+constexpr uint8_t LHR_DATA_ENC_OFFSET_SOURCE      = 2;  // [2..5] Origin device ID
+constexpr uint8_t LHR_DATA_ENC_OFFSET_SENDER      = 6;  // [6..9] Sender device ID
+constexpr uint8_t LHR_DATA_ENC_OFFSET_RECEIVER    = 10; // [10..13] Receiver device ID
+constexpr uint8_t LHR_DATA_ENC_OFFSET_SEQ_NUM     = 14; // Sequence number (1 byte)
+constexpr uint8_t LHR_DATA_ENC_OFFSET_TTL         = 15; // Time to live (1 byte)
+constexpr uint8_t LHR_DATA_ENC_OFFSET_WIRECOUNTER = 16; // [16..18] Wire nonce counter (3 bytes)
+constexpr uint8_t LHR_DATA_ENC_OFFSET_MIC         = 19; // [19..22] Message authentication code (4 bytes)
+constexpr uint8_t LHR_DATA_ENC_OFFSET_PAYLOAD     = 23; // [23..] Start of encrypted application payload
+
+
+// ── NDAT ─────────────────────────────────────────────────────────
+
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_MAGIC       = 0;  // Start byte (LHR_START_BYTE)
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_TYPE        = 1;  // Packet type
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_SENDER      = 2;  // [2..5] Sender device ID
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_HOPS        = 6;  // [6] Hops to Home (1 byte)
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_WIRECOUNTER = 7;  // [7..9] Wire nonce counter (3 bytes)
+constexpr uint8_t LHR_NDAT_ENC_OFFSET_MIC         = 10; // [10..13] Message authentication code (4 bytes)
+
+
+// ── RFCN ─────────────────────────────────────────────────────────
+
+constexpr uint8_t LHR_RFCN_ENC_OFFSET_MAGIC       = 0; // Start byte (LHR_START_BYTE)
+constexpr uint8_t LHR_RFCN_ENC_OFFSET_TYPE        = 1; // Packet type
+constexpr uint8_t LHR_RFCN_ENC_OFFSET_SENDER      = 2; // [2..5] Sender device ID
+constexpr uint8_t LHR_RFCN_ENC_OFFSET_WIRECOUNTER = 6; // [6..8] Wire nonce counter (3 bytes)
+constexpr uint8_t LHR_RFCN_ENC_OFFSET_MIC         = 9; // [9..12] Message authentication code (4 bytes)
+
+
+// ── DATA_RES ────────────────────────────────────────────────────
+
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_MAGIC       = 0;  // Start byte (LHR_START_BYTE)
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_TYPE        = 1;  // Packet type
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_SENDER      = 2;  // [2..5] Sender device ID
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_RECEIVER    = 6;  // [6..9] Receiver device ID
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_SEQ_NUM     = 10; // Sequence number (1 byte)
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_WIRECOUNTER = 11; // [11..13] Wire nonce counter (3 bytes)
+constexpr uint8_t LHR_DATARES_ENC_OFFSET_MIC         = 14; // [14..17] Message authentication code (4 bytes)
+
+
+// ================================================================
+// Packet Lengths — Encrypted
+// ================================================================
+//
+// Derived from the offsets above wherever possible, so header layout
+// and packet length can never drift apart.
+
+constexpr uint8_t LHR_DATA_HEADER_ENC_LEN = LHR_DATA_ENC_OFFSET_PAYLOAD;                // Fixed header length for DATA packets
+constexpr uint8_t LHR_NDAT_ENC_LEN        = LHR_NDAT_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of NDAT packet
+constexpr uint8_t LHR_RFCN_ENC_LEN        = LHR_RFCN_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of RFCN packet
+constexpr uint8_t LHR_DATA_RES_ENC_LEN    = LHR_DATARES_ENC_OFFSET_MIC  + LHR_MIC_LEN;  // Fixed total length of DATA_RES packet
+
+
+// ================================================================
 // Limits
 // ================================================================
 
@@ -97,4 +158,5 @@ constexpr uint8_t LHR_MIN_VALID_PACKET_SIZE = 2;  // Minimum size: magic byte + 
   #define LORA_PHY_MAX_PACKET_SIZE (255)
 #endif
 
-constexpr uint8_t LHR_MAX_PAYLOAD = LORA_PHY_MAX_PACKET_SIZE - LHR_DATA_HEADER_LEN;  // Max application payload in DATA packet
+constexpr uint8_t LHR_MAX_PAYLOAD     = LORA_PHY_MAX_PACKET_SIZE - LHR_DATA_HEADER_LEN;     // Max application payload in DATA packet
+constexpr uint8_t LHR_MAX_PAYLOAD_ENC = LORA_PHY_MAX_PACKET_SIZE - LHR_DATA_HEADER_ENC_LEN; // Max application payload in encrypted DATA packet
