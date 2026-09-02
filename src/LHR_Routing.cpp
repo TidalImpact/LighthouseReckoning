@@ -15,7 +15,7 @@
 
 
 // ================================================================
-// Packet Construction
+// Packet Construction — Unencrypted
 // ================================================================
 
 void LighthouseReckoning::_buildDataHeader(uint8_t* buf, uint8_t ttl) {
@@ -71,6 +71,88 @@ void LighthouseReckoning::_buildDATARES(uint8_t* buf, uint32_t receiverId, uint8
     buf[LHR_DATARES_OFFSET_SEQ_NUM] = seqNum;
 }
 
+
+// ================================================================
+// Packet Construction — Encrypted
+// ================================================================
+
+#if LHR_ENCRYPTION_SUPPORTED
+
+lhr_err_t LighthouseReckoning::_buildEncryptedNDAT(uint8_t* buf) {
+    uint8_t aad[6];
+    aad[0] = LHR_START_BYTE;
+    aad[1] = LHR_PKT_NDAT;
+    aad[2] = (_deviceId >> 24) & 0xFF;
+    aad[3] = (_deviceId >> 16) & 0xFF;
+    aad[4] = (_deviceId >>  8) & 0xFF;
+    aad[5] = (_deviceId >>  0) & 0xFF;
+
+    uint8_t plaintext = _hopsToHome;
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    uint32_t wireCounter = 0;
+    lhr_err_t err = _buildNonce(nonce, &wireCounter);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    uint8_t tag[LHR_MIC_LEN];
+    err = _ccmEncrypt(nonce, aad, sizeof(aad), &plaintext, 1, &buf[LHR_NDAT_ENC_OFFSET_HOPS], tag);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    buf[LHR_NDAT_ENC_OFFSET_MAGIC] = LHR_START_BYTE;
+    buf[LHR_NDAT_ENC_OFFSET_TYPE]  = LHR_PKT_NDAT;
+    memcpy(&buf[LHR_NDAT_ENC_OFFSET_SENDER], &aad[2], 4);
+
+    uint32_t maskedCounter = wireCounter & 0x00FFFFFFUL;
+    buf[LHR_NDAT_ENC_OFFSET_WIRECOUNTER + 0] = (maskedCounter >> 16) & 0xFF;
+    buf[LHR_NDAT_ENC_OFFSET_WIRECOUNTER + 1] = (maskedCounter >>  8) & 0xFF;
+    buf[LHR_NDAT_ENC_OFFSET_WIRECOUNTER + 2] = (maskedCounter >>  0) & 0xFF;
+
+    memcpy(&buf[LHR_NDAT_ENC_OFFSET_MIC], tag, LHR_MIC_LEN);
+
+    return LHR_OK;
+}
+
+lhr_err_t LighthouseReckoning::_buildEncryptedRFCN(uint8_t* buf) {
+    uint8_t aad[6];
+    aad[0] = LHR_START_BYTE;
+    aad[1] = LHR_PKT_RFCN;
+    aad[2] = (_deviceId >> 24) & 0xFF;
+    aad[3] = (_deviceId >> 16) & 0xFF;
+    aad[4] = (_deviceId >>  8) & 0xFF;
+    aad[5] = (_deviceId >>  0) & 0xFF;
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    uint32_t wireCounter = 0;
+    lhr_err_t err = _buildNonce(nonce, &wireCounter);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    uint8_t tag[LHR_MIC_LEN];
+    err = _ccmEncrypt(nonce, aad, sizeof(aad), nullptr, 0, nullptr, tag);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    buf[LHR_RFCN_ENC_OFFSET_MAGIC] = LHR_START_BYTE;
+    buf[LHR_RFCN_ENC_OFFSET_TYPE]  = LHR_PKT_RFCN;
+    memcpy(&buf[LHR_RFCN_ENC_OFFSET_SENDER], &aad[2], 4);
+
+    uint32_t maskedCounter = wireCounter & 0x00FFFFFFUL;
+    buf[LHR_RFCN_ENC_OFFSET_WIRECOUNTER + 0] = (maskedCounter >> 16) & 0xFF;
+    buf[LHR_RFCN_ENC_OFFSET_WIRECOUNTER + 1] = (maskedCounter >>  8) & 0xFF;
+    buf[LHR_RFCN_ENC_OFFSET_WIRECOUNTER + 2] = (maskedCounter >>  0) & 0xFF;
+
+    memcpy(&buf[LHR_RFCN_ENC_OFFSET_MIC], tag, LHR_MIC_LEN);
+
+    return LHR_OK;
+}
+
+#endif // LHR_ENCRYPTION_SUPPORTED
 
 // ================================================================
 // Forward / Retry Buffer Management

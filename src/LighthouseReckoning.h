@@ -832,6 +832,9 @@ private:
     
     #if LHR_ENCRYPTION_SUPPORTED
 
+        lhr_err_t _buildEncryptedRFCN(uint8_t* buf);
+        lhr_err_t _buildEncryptedNDAT(uint8_t* buf);
+
         /**
          * @brief Encrypts a single packet payload and produces its MIC.
          *
