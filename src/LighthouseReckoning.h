@@ -834,6 +834,7 @@ private:
 
         lhr_err_t _buildEncryptedRFCN(uint8_t* buf);
         lhr_err_t _buildEncryptedNDAT(uint8_t* buf);
+        lhr_err_t _buildEncryptedDATARES(uint8_t* buf, uint32_t receiverId, uint8_t seqNum);
 
         /**
          * @brief Encrypts a single packet payload and produces its MIC.

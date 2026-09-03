@@ -147,7 +147,7 @@ constexpr uint8_t LHR_DATARES_ENC_OFFSET_MIC         = 14; // [14..17] Message a
 constexpr uint8_t LHR_DATA_HEADER_ENC_LEN = LHR_DATA_ENC_OFFSET_PAYLOAD;                // Fixed header length for DATA packets
 constexpr uint8_t LHR_NDAT_ENC_LEN        = LHR_NDAT_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of NDAT packet
 constexpr uint8_t LHR_RFCN_ENC_LEN        = LHR_RFCN_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of RFCN packet
-constexpr uint8_t LHR_DATA_RES_ENC_LEN    = LHR_DATARES_ENC_OFFSET_MIC  + LHR_MIC_LEN;  // Fixed total length of DATA_RES packet
+constexpr uint8_t LHR_DATARES_ENC_LEN     = LHR_DATARES_ENC_OFFSET_MIC  + LHR_MIC_LEN;  // Fixed total length of DATA_RES packet
 
 
 // ================================================================

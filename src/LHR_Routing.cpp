@@ -152,6 +152,49 @@ lhr_err_t LighthouseReckoning::_buildEncryptedRFCN(uint8_t* buf) {
     return LHR_OK;
 }
 
+lhr_err_t LighthouseReckoning::_buildEncryptedDATARES(uint8_t* buf, uint32_t receiverId, uint8_t seqNum) {
+    uint8_t aad[10];
+    aad[0] = LHR_START_BYTE;
+    aad[1] = LHR_PKT_DATA_RES;
+    aad[2] = (_deviceId  >> 24) & 0xFF;
+    aad[3] = (_deviceId  >> 16) & 0xFF;
+    aad[4] = (_deviceId  >>  8) & 0xFF;
+    aad[5] = (_deviceId  >>  0) & 0xFF;
+    aad[6] = (receiverId >> 24) & 0xFF;
+    aad[7] = (receiverId >> 16) & 0xFF;
+    aad[8] = (receiverId >>  8) & 0xFF;
+    aad[9] = (receiverId >>  0) & 0xFF;
+
+    uint8_t plaintext = seqNum;
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    uint32_t wireCounter = 0;
+    lhr_err_t err = _buildNonce(nonce, &wireCounter);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    uint8_t tag[LHR_MIC_LEN];
+    err = _ccmEncrypt(nonce, aad, sizeof(aad), &plaintext, 1, &buf[LHR_DATARES_ENC_OFFSET_SEQ_NUM], tag);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    buf[LHR_DATARES_ENC_OFFSET_MAGIC] = LHR_START_BYTE;
+    buf[LHR_DATARES_ENC_OFFSET_TYPE]  = LHR_PKT_DATA_RES;
+    memcpy(&buf[LHR_DATARES_ENC_OFFSET_SENDER],   &aad[2], 4);
+    memcpy(&buf[LHR_DATARES_ENC_OFFSET_RECEIVER], &aad[6], 4);
+
+    uint32_t maskedCounter = wireCounter & 0x00FFFFFFUL;
+    buf[LHR_DATARES_ENC_OFFSET_WIRECOUNTER + 0] = (maskedCounter >> 16) & 0xFF;
+    buf[LHR_DATARES_ENC_OFFSET_WIRECOUNTER + 1] = (maskedCounter >>  8) & 0xFF;
+    buf[LHR_DATARES_ENC_OFFSET_WIRECOUNTER + 2] = (maskedCounter >>  0) & 0xFF;
+
+    memcpy(&buf[LHR_DATARES_ENC_OFFSET_MIC], tag, LHR_MIC_LEN);
+
+    return LHR_OK;
+}
+
 #endif // LHR_ENCRYPTION_SUPPORTED
 
 // ================================================================
