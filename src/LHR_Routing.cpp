@@ -78,6 +78,79 @@ void LighthouseReckoning::_buildDATARES(uint8_t* buf, uint32_t receiverId, uint8
 
 #if LHR_ENCRYPTION_SUPPORTED
 
+lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint8_t ttl, const uint8_t* payload, size_t len){
+    if (len > LHR_MAX_PAYLOAD_ENC) {
+        return LHR_ERR_TOO_LONG;
+    }
+
+    uint8_t aad[10];
+    aad[0] = LHR_START_BYTE;
+    aad[1] = LHR_PKT_DATA;
+
+    aad[2] = (_deviceId >> 24) & 0xFF;
+    aad[3] = (_deviceId >> 16) & 0xFF;
+    aad[4] = (_deviceId >>  8) & 0xFF;
+    aad[5] = (_deviceId >>  0) & 0xFF;
+
+    aad[6] = (_bestNeighborId  >> 24) & 0xFF;
+    aad[7] = (_bestNeighborId  >> 16) & 0xFF;
+    aad[8] = (_bestNeighborId  >>  8) & 0xFF;
+    aad[9] = (_bestNeighborId  >>  0) & 0xFF;
+
+
+    uint8_t plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
+    plaintext[0] = (_deviceId >> 24) & 0xFF;
+    plaintext[1] = (_deviceId >> 16) & 0xFF;
+    plaintext[2] = (_deviceId >>  8) & 0xFF;
+    plaintext[3] = (_deviceId >>  0) & 0xFF;
+
+    _pendingAckSeqNum = _currentSeqNum;
+    plaintext[4] = _currentSeqNum++;
+
+    plaintext[5] = ttl;
+
+    memcpy(&plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN], payload, len);
+    size_t plainLen = LHR_DATA_ENC_HEADER_FIELDS_LEN  + len;
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    uint32_t wireCounter = 0;
+    lhr_err_t err = _buildNonce(nonce, &wireCounter);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    uint8_t temp[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
+    uint8_t tag[LHR_MIC_LEN];
+    err = _ccmEncrypt(nonce, aad, sizeof(aad), plaintext, plainLen, &temp[0], tag);
+    if (err != LHR_OK) {
+        return err;
+    }
+
+    buf[LHR_DATA_ENC_OFFSET_MAGIC]          = LHR_START_BYTE;
+    buf[LHR_DATA_ENC_OFFSET_TYPE]           = LHR_PKT_DATA;
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_SOURCE], &temp[0], 4);
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_SENDER], &aad[2], 4);
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_RECEIVER], &aad[6], 4);
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_SEQ_NUM], &temp[4], 1);
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_TTL], &temp[5], 1);
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_PAYLOAD], &temp[LHR_DATA_ENC_HEADER_FIELDS_LEN], len);
+
+
+    uint32_t maskedCounter = wireCounter & 0x00FFFFFFUL;
+    buf[LHR_DATA_ENC_OFFSET_WIRECOUNTER + 0] = (maskedCounter >> 16) & 0xFF;
+    buf[LHR_DATA_ENC_OFFSET_WIRECOUNTER + 1] = (maskedCounter >>  8) & 0xFF;
+    buf[LHR_DATA_ENC_OFFSET_WIRECOUNTER + 2] = (maskedCounter >>  0) & 0xFF;
+
+    memcpy(&buf[LHR_DATA_ENC_OFFSET_MIC], tag, LHR_MIC_LEN);
+
+    return LHR_OK;
+}
+
 lhr_err_t LighthouseReckoning::_buildEncryptedNDAT(uint8_t* buf) {
     uint8_t aad[6];
     aad[0] = LHR_START_BYTE;

@@ -832,6 +832,7 @@ private:
     
     #if LHR_ENCRYPTION_SUPPORTED
 
+        lhr_err_t _buildEncryptedDataPacket(uint8_t* buf, uint8_t ttl, const uint8_t* payload, size_t len);
         lhr_err_t _buildEncryptedRFCN(uint8_t* buf);
         lhr_err_t _buildEncryptedNDAT(uint8_t* buf);
         lhr_err_t _buildEncryptedDATARES(uint8_t* buf, uint32_t receiverId, uint8_t seqNum);

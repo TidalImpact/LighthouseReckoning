@@ -144,6 +144,8 @@ constexpr uint8_t LHR_DATARES_ENC_OFFSET_MIC         = 14; // [14..17] Message a
 // Derived from the offsets above wherever possible, so header layout
 // and packet length can never drift apart.
 
+constexpr uint8_t LHR_DATA_ENC_HEADER_FIELDS_LEN = 6; // SOURCE(4) + SEQ_NUM(1) + TTL(1) — header fields that get encrypted together with the payload
+
 constexpr uint8_t LHR_DATA_HEADER_ENC_LEN = LHR_DATA_ENC_OFFSET_PAYLOAD;                // Fixed header length for DATA packets
 constexpr uint8_t LHR_NDAT_ENC_LEN        = LHR_NDAT_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of NDAT packet
 constexpr uint8_t LHR_RFCN_ENC_LEN        = LHR_RFCN_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of RFCN packet
