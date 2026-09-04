@@ -228,7 +228,7 @@ typedef enum lhr_err : uint8_t {
     LHR_ERR_NONCE_EXHAUSTED       =  17,  // Nonce counter reached its maximum value
 
     // --- Encryption Storage / LHR_EncryptionStore ---
-    LHR_ERR_STORE_NOT_INIT        =  18,  // beginStore() not called before use
+    LHR_ERR_STORE_NOT_INIT        =  18,  // _storageInit() not called before use
     LHR_ERR_STORE_WRITE_FAIL      =  19,  // NVS/EEPROM/Flash write failed
     LHR_ERR_STORE_READ_FAIL       =  20,  // NVS/EEPROM/Flash read failed
 } lhr_err_t;
