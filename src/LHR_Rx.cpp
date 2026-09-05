@@ -29,7 +29,13 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
     uint8_t buf[LORA_PHY_MAX_PACKET_SIZE];
     size_t  len   = _radio->getPacketLength();
 
-    if (len < LHR_MIN_VALID_PACKET_SIZE || len > sizeof(buf)) {
+    size_t minValidLen = LHR_MIN_VALID_PACKET_SIZE;
+    #if LHR_ENCRYPTION_SUPPORTED
+        if (_encryptionEnabled) {
+            minValidLen = LHR_MIN_VALID_PACKET_SIZE_ENC;
+        }
+    #endif // LHR_ENCRYPTION_SUPPORTED
+    if (len < minValidLen || len > sizeof(buf)) {
         _startReceive();
         return LHR_UPDATE_IDLE;
     }
@@ -55,7 +61,13 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
     switch (type) {
 
         case LHR_PKT_DATA: {
-            if (len < LHR_DATA_HEADER_LEN) {
+            size_t minDataLen = LHR_DATA_HEADER_LEN;
+            #if LHR_ENCRYPTION_SUPPORTED
+                if (_encryptionEnabled) {
+                    minDataLen = LHR_DATA_ENC_OFFSET_PAYLOAD;
+                }
+            #endif // LHR_ENCRYPTION_SUPPORTED
+            if (len < minDataLen) {
                 LHR_DEBUG_PRINTLN("[RX] DATA too short: %d", len);
                 break;
             }
@@ -71,7 +83,13 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
         }
 
         case LHR_PKT_NDAT: {
-            if (len != LHR_NDAT_LEN) {
+            size_t expectedNdatLen = LHR_NDAT_LEN;
+            #if LHR_ENCRYPTION_SUPPORTED
+                if (_encryptionEnabled) {
+                    expectedNdatLen = LHR_NDAT_ENC_LEN;
+                }
+            #endif // LHR_ENCRYPTION_SUPPORTED
+            if (len != expectedNdatLen) {
                 LHR_DEBUG_PRINTLN("[RX] NDAT wrong length: %d", len);
                 break;
             }
@@ -85,7 +103,13 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
         }
 
         case LHR_PKT_RFCN: {
-            if (len != LHR_RFCN_LEN) {
+            size_t expectedRfcnLen = LHR_RFCN_LEN;
+            #if LHR_ENCRYPTION_SUPPORTED
+                if (_encryptionEnabled) {
+                    expectedRfcnLen = LHR_RFCN_ENC_LEN;
+                }
+            #endif // LHR_ENCRYPTION_SUPPORTED
+            if (len != expectedRfcnLen) {
                 LHR_DEBUG_PRINTLN("[RX] RFCN wrong length: %d", len);
                 break;
             }
@@ -95,7 +119,13 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
         }
 
         case LHR_PKT_DATA_RES: {
-            if (len != LHR_DATA_RES_LEN) {
+            size_t expectedDataResLen = LHR_DATA_RES_LEN;
+            #if LHR_ENCRYPTION_SUPPORTED
+                if (_encryptionEnabled) {
+                    expectedDataResLen = LHR_DATARES_ENC_LEN;
+                }
+            #endif // LHR_ENCRYPTION_SUPPORTED
+            if (len != expectedDataResLen) {
                 LHR_DEBUG_PRINTLN("[RX] DATA_RES wrong length: %d", len);
                 break;
             }
