@@ -837,7 +837,7 @@ private:
         lhr_err_t _buildEncryptedNDAT(uint8_t* buf);
         lhr_err_t _buildEncryptedDATARES(uint8_t* buf, uint32_t receiverId, uint8_t seqNum);
 
-        lhr_err_t _verifyAndDecryptDataPacket(uint8_t* buf, size_t len, uint32_t* outSourceId, uint8_t* outSeqNum, uint8_t* outTTL, uint8_t* outPayload, size_t* outPayloadLen);
+        lhr_err_t _verifyAndDecryptDataPacket(uint8_t* buf, size_t len, uint8_t* outPacket, size_t* outPacketLen);
         lhr_err_t _verifyAndDecryptNDAT(uint8_t* buf, size_t len, uint32_t* outSenderId, uint8_t* outHops);
         lhr_err_t _verifyRFCN(uint8_t* buf, size_t len);
         lhr_err_t _verifyAndDecryptDATARES(uint8_t* buf, size_t len, uint8_t* outSeqNum);
