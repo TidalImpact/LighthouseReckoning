@@ -837,6 +837,8 @@ private:
         lhr_err_t _buildEncryptedNDAT(uint8_t* buf);
         lhr_err_t _buildEncryptedDATARES(uint8_t* buf, uint32_t receiverId, uint8_t seqNum);
 
+        lhr_err_t _verifyAndDecryptNDAT(uint8_t* buf, size_t len, uint32_t* outSenderId, uint8_t* outHops);
+
         /**
          * @brief Encrypts a single packet payload and produces its MIC.
          *

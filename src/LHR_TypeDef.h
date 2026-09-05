@@ -194,6 +194,8 @@ constexpr uint8_t LHR_NONCE_LEN                  = 8; // total nonce length
 constexpr uint8_t LHR_NONCE_OFFSET_DEVICEID      = 0; // [0..3] Device ID
 constexpr uint8_t LHR_NONCE_OFFSET_NONCE_COUNTER = 4; // [4..7] Nonce Counter
 
+constexpr uint8_t LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS = 0x0A;
+
 
 // ================================================================
 // Result / Error Enums

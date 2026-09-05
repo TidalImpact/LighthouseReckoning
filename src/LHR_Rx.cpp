@@ -138,7 +138,7 @@ bool LighthouseReckoning::_isDuplicateData(uint32_t source, uint8_t seq) {
 
 
 // ================================================================
-// Packet Handlers
+// Packet Handlers — Unencrypted
 // ================================================================
 
 void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
@@ -287,4 +287,43 @@ bool LighthouseReckoning::_handleDATARES(uint8_t* buf, size_t len) {
         LHR_DEBUG_PRINTLN("[DATARES] Not for us, dropping");
         return false;
     }
+}
+
+
+// ================================================================
+// Packet Handlers — Encrypted
+// ================================================================
+
+lhr_err_t LighthouseReckoning::_verifyAndDecryptNDAT(uint8_t* buf, size_t len, uint32_t* outSenderId, uint8_t* outHops) {
+    if (len != LHR_NDAT_ENC_LEN) {
+        return LHR_ERR_ARGS;
+    }
+
+    uint8_t aad[6];
+    aad[0] = buf[LHR_NDAT_ENC_OFFSET_MAGIC];
+    aad[1] = buf[LHR_NDAT_ENC_OFFSET_TYPE];
+    memcpy(&aad[2], &buf[LHR_NDAT_ENC_OFFSET_SENDER], 4);
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    memcpy(&nonce[0], &buf[LHR_NDAT_ENC_OFFSET_SENDER], 4);
+    memcpy(&nonce[5], &buf[LHR_NDAT_ENC_OFFSET_WIRECOUNTER], 3);
+
+    uint8_t hopsPlain;
+    lhr_err_t lastErr = LHR_ERR_AUTH_FAIL;
+
+    for (uint8_t upperByte = 0; upperByte < LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS; upperByte++) {
+        nonce[4] = upperByte;
+
+        lastErr = _ccmDecrypt(nonce, aad, sizeof(aad),
+                               &buf[LHR_NDAT_ENC_OFFSET_HOPS], 1,
+                               &buf[LHR_NDAT_ENC_OFFSET_MIC], &hopsPlain);
+        if (lastErr == LHR_OK) {
+            *outSenderId = ((uint32_t)aad[2] << 24) | ((uint32_t)aad[3] << 16) |
+                           ((uint32_t)aad[4] <<  8) |  (uint32_t)aad[5];
+            *outHops = hopsPlain;
+            return LHR_OK;
+        }
+    }
+
+    return lastErr;
 }
