@@ -108,6 +108,18 @@ void LighthouseReckoning::_sendBeacon() {
 }
 
 void LighthouseReckoning::_sendRFCN() {
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        uint8_t buf[LHR_RFCN_ENC_LEN];
+        lhr_err_t err = _buildEncryptedRFCN(buf);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[RFCN] Encrypted build failed, err=%d", err);
+            return;
+        }
+        _transmit(buf, LHR_RFCN_ENC_LEN);
+        return;
+    }
+#endif // LHR_ENCRYPTION_SUPPORTED
     uint8_t buf[LHR_RFCN_LEN] = { LHR_START_BYTE, LHR_PKT_RFCN };
     _transmit(buf, LHR_RFCN_LEN);
     // RFCN is sent immediately (no jitter needed — it's a request, not an advertisement)
@@ -131,6 +143,18 @@ void LighthouseReckoning::_sendNDAT() {
 // ================================================================
 
 void LighthouseReckoning::_sendDATARES(uint32_t receiverId, uint8_t seqNum) {
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        uint8_t buf[LHR_DATARES_ENC_LEN];
+        lhr_err_t err = _buildEncryptedDATARES(buf, receiverId, seqNum);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[DATA_RES] Encrypted build failed, err=%d", err);
+            return;
+        }
+        _transmit(buf, LHR_DATARES_ENC_LEN);
+        return;
+    }
+#endif // LHR_ENCRYPTION_SUPPORTED
     uint8_t buf[LHR_DATA_RES_LEN];
     _buildDATARES(buf, receiverId, seqNum);
     _transmit(buf, LHR_DATA_RES_LEN);

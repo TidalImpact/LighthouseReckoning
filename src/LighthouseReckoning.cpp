@@ -174,13 +174,20 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
     if (len == 0)                                   return LHR_ERR_ARGS;
     if (ttl == 0)                                   return LHR_ERR_ZERO_TTL;
     if (_role == LHR_ROLE_HOME)                     return LHR_ERR_WRONG_ROLE;          // Home node does not send data
-    if (_role == LHR_ROLE_NONE)                     return LHR_ERR_NOT_CONFIGURED;      // The Node has not been configured as either a home or relay node 
-    if (len > LHR_MAX_PAYLOAD)                      return LHR_ERR_TOO_LONG;            // The payload is too long
+    if (_role == LHR_ROLE_NONE)                     return LHR_ERR_NOT_CONFIGURED;      // The Node has not been configured as either a home or relay node
+    size_t headerLenForLimits = LHR_DATA_HEADER_LEN;
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        headerLenForLimits = LHR_DATA_ENC_OFFSET_PAYLOAD;
+    }
+#endif
+    size_t maxPayload = LORA_PHY_MAX_PACKET_SIZE - headerLenForLimits;
+    if (len > maxPayload)                      return LHR_ERR_TOO_LONG;            // The payload is too long
     if (_waitingForDataRes)                         return LHR_ERR_BUSY;
     if (_bestNeighborId == LHR_FORBIDDEN_NODE_ID)   return LHR_ERR_NO_ROUTE;
     if (_useDutyCycleLimit) {
         _updateDutyCycleWindow();
-        unsigned long airtimeMs = (unsigned long)(_radio->getTimeOnAir(LHR_DATA_HEADER_LEN + len) / 1000);
+        unsigned long airtimeMs = (unsigned long)(_radio->getTimeOnAir(headerLenForLimits + len) / 1000);
         if (_dutyCycleRemainingMs() == 0 || _dutyCycleRemainingMs() < airtimeMs) {
             return LHR_ERR_DUTY_CYCLE_EXHAUSTED;
         }
@@ -188,10 +195,23 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
     
     
     uint8_t buf[LORA_PHY_MAX_PACKET_SIZE];
-    size_t totalLen = LHR_DATA_HEADER_LEN + len;
-    _buildDataHeader(buf, ttl);
+    size_t totalLen;
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        lhr_err_t err = _buildEncryptedDataPacket(buf, ttl, payload, len);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[DATA] Encrypted build failed, err=%d", err);
+            return err;
+        }
+        totalLen = LHR_DATA_ENC_OFFSET_PAYLOAD + len;
+    } else
+#endif
+    {
+        totalLen = LHR_DATA_HEADER_LEN + len;
+        _buildDataHeader(buf, ttl);
+        memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], payload, len);
+    }
 
-    memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], payload, len);
 
     _storeForwardPacket(buf, totalLen);
     _lastPacketSenderId = LHR_FORBIDDEN_NODE_ID;            // Set to the forbidden Id (never a real neighbor) so that
@@ -266,6 +286,22 @@ lhr_update_result_t LighthouseReckoning::update() {
             // routing information and only wastes airtime.
             return LHR_UPDATE_IDLE;
         }
+        #if LHR_ENCRYPTION_SUPPORTED
+            if (_encryptionEnabled) {
+                uint8_t buf[LHR_NDAT_ENC_LEN];
+                lhr_err_t err = _buildEncryptedNDAT(buf);
+                if (err != LHR_OK) {
+                    LHR_DEBUG_PRINTLN("[NDAT] Encrypted build failed, err=%d", err);
+                    return LHR_UPDATE_TX_ERROR;
+                }
+                if (_transmit(buf, LHR_NDAT_ENC_LEN) != LHR_TX_OK) {
+                    return LHR_UPDATE_TX_ERROR;
+                }
+                _lastTriggeredNdatMs    = LHR_MILLIS();
+                _lastAdvertisedHops     = _hopsToHome;              // Store the last advertised hop count to detect changes and advertise a new route faster when the current route changes.
+                return LHR_UPDATE_TX_NDAT;
+            }
+        #endif // LHR_ENCRYPTION_SUPPORTED
         uint8_t buf[LHR_NDAT_LEN];
         _buildNDAT(buf);
         if (_transmit(buf, LHR_NDAT_LEN) != LHR_TX_OK) {
