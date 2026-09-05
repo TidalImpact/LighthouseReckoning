@@ -113,7 +113,7 @@ lhr_update_result_t LighthouseReckoning::_checkLoraData() {
                 LHR_DEBUG_PRINTLN("[RX] RFCN wrong length: %d", len);
                 break;
             }
-            _handleRFCN();
+            _handleRFCN(buf, len);
             _startReceive();
             return LHR_UPDATE_RX_RFCN;
         }
@@ -172,13 +172,27 @@ bool LighthouseReckoning::_isDuplicateData(uint32_t source, uint8_t seq) {
 // ================================================================
 
 void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
-    uint32_t senderId =
+    uint32_t senderId;
+    uint8_t  hops;
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        lhr_err_t err = _verifyAndDecryptNDAT(buf, len, &senderId, &hops);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[NDAT] Decrypt/verify failed, err=%d", err);
+            return;
+        }
+    } else
+#endif // LHR_ENCRYPTION_SUPPORTED
+    {
+        senderId =
         ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 0] << 24) |
         ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 1] << 16) |
         ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 2] <<  8) |
          (uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 3];
 
-    uint8_t hops = buf[LHR_NDAT_OFFSET_HOPS];
+        hops = buf[LHR_NDAT_OFFSET_HOPS];
+    }
+    
 
     LHR_DEBUG_PRINTLN("[NDAT] From 0x%08X hops=%d rssi=%.1f", senderId, hops, rssi);
 
@@ -186,7 +200,16 @@ void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
 }
 
 
-void LighthouseReckoning::_handleRFCN() {
+void LighthouseReckoning::_handleRFCN(uint8_t* buf, size_t len) {
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        lhr_err_t err = _verifyRFCN(buf, len);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[RFCN] Decrypt/verify failed, err=%d", err);
+            return;
+        }
+    }
+#endif // LHR_ENCRYPTION_SUPPORTED
     if (_ndatPending) {
         LHR_DEBUG_PRINTLN("[RFCN] Response already pending, ignoring duplicate");
         return;
@@ -277,48 +300,89 @@ void LighthouseReckoning::_handleDATA(uint8_t* buf, size_t len, float rssi, floa
     }
 }
 
-
 bool LighthouseReckoning::_handleDATARES(uint8_t* buf, size_t len) {
-    // Defensive length check (caller already validated, kept for safety)
-    if (len != LHR_DATA_RES_LEN) {
-        return false;
-    } 
+    uint32_t receiverId;
+    uint8_t  seqNum;
 
-    uint32_t receiverId =
-        ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 0] << 24) |
-        ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 1] << 16) |
-        ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 2] <<  8) |
-         (uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 3];
-
-    if (receiverId == _deviceId) {
-        uint8_t seqNum = buf[LHR_DATARES_OFFSET_SEQ_NUM];
-        if (_pendingAckSeqNum == seqNum) {
-#ifdef LHR_DEBUG
-            // Only needed for the debug log line below — avoids an
-            // unused-variable warning in release builds.
-            uint32_t senderId =     
-                ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 0] << 24) |
-                ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 1] << 16) |
-                ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 2] <<  8) |
-                (uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 3];
-
-            LHR_DEBUG_PRINTLN("[DATARES] Received from 0x%08X", senderId);
-#endif
-
-            _resetDataResState();
-            return true;
-        }
-        else {
-            LHR_DEBUG_PRINTLN("[DATARES] for us but wrong seq (expected=%d, got=%d)", _pendingAckSeqNum, seqNum);
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        // Defensive length check (caller already validated, kept for safety)
+        if (len != LHR_DATARES_ENC_LEN) {
             return false;
         }
+
+        // RECEIVER is AAD (plaintext) even when encrypted — readable directly,
+        // no need to decrypt first just to know whether this packet is for us.
+        receiverId =
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_RECEIVER + 0] << 24) |
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_RECEIVER + 1] << 16) |
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_RECEIVER + 2] <<  8) |
+             (uint32_t)buf[LHR_DATARES_ENC_OFFSET_RECEIVER + 3];
+
+        if (receiverId != _deviceId) {
+            LHR_DEBUG_PRINTLN("[DATARES] Not for us, dropping");
+            return false;
+        }
+
+        lhr_err_t err = _verifyAndDecryptDATARES(buf, len, &seqNum);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[DATARES] Decrypt/verify failed, err=%d", err);
+            return false;
+        }
+    } else
+#endif // LHR_ENCRYPTION_SUPPORTED
+    {
+        // Defensive length check (caller already validated, kept for safety)
+        if (len != LHR_DATA_RES_LEN) {
+            return false;
+        }
+
+        receiverId =
+            ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 0] << 24) |
+            ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 1] << 16) |
+            ((uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 2] <<  8) |
+             (uint32_t)buf[LHR_DATARES_OFFSET_RECEIVER + 3];
+
+        if (receiverId != _deviceId) {
+            LHR_DEBUG_PRINTLN("[DATARES] Not for us, dropping");
+            return false;
+        }
+
+        seqNum = buf[LHR_DATARES_OFFSET_SEQ_NUM];
     }
-    else {
-        LHR_DEBUG_PRINTLN("[DATARES] Not for us, dropping");
+
+    if (_pendingAckSeqNum != seqNum) {
+        LHR_DEBUG_PRINTLN("[DATARES] for us but wrong seq (expected=%d, got=%d)", _pendingAckSeqNum, seqNum);
         return false;
     }
-}
 
+#ifdef LHR_DEBUG
+    // Only needed for the debug log line below — avoids an
+    // unused-variable warning in release builds.
+    uint32_t senderId;
+    #if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        senderId =
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_SENDER + 0] << 24) |
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_SENDER + 1] << 16) |
+            ((uint32_t)buf[LHR_DATARES_ENC_OFFSET_SENDER + 2] <<  8) |
+             (uint32_t)buf[LHR_DATARES_ENC_OFFSET_SENDER + 3];
+    } else
+    #endif // LHR_ENCRYPTION_SUPPORTED
+    {
+        senderId =
+            ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 0] << 24) |
+            ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 1] << 16) |
+            ((uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 2] <<  8) |
+             (uint32_t)buf[LHR_DATARES_OFFSET_SENDER + 3];
+    }
+
+    LHR_DEBUG_PRINTLN("[DATARES] Received from 0x%08X", senderId);
+#endif
+
+    _resetDataResState();
+    return true;
+}
 
 // ================================================================
 // Packet Handlers — Encrypted

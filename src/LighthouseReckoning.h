@@ -700,7 +700,7 @@ private:
     lhr_update_result_t  _checkLoraData();
     void _handleDATA   (uint8_t* buf, size_t len, float rssi, float snr);
     void _handleNDAT   (uint8_t* buf, size_t len, float rssi);
-    void _handleRFCN   ();
+    void _handleRFCN   (uint8_t* buf, size_t len);
     bool _handleDATARES(uint8_t* buf, size_t len);
 
     bool _isDuplicateData(uint32_t source, uint8_t seq);
