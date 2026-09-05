@@ -366,3 +366,40 @@ lhr_err_t LighthouseReckoning::_verifyRFCN(uint8_t* buf, size_t len) {
 
     return lastErr;
 }
+
+lhr_err_t LighthouseReckoning::_verifyAndDecryptDATARES(uint8_t* buf, size_t len, uint8_t* outSeqNum) {
+    if (len != LHR_DATARES_ENC_LEN) {
+        return LHR_ERR_ARGS;
+    }
+
+    uint8_t aad[10];
+    aad[0] = buf[LHR_DATARES_ENC_OFFSET_MAGIC];
+    aad[1] = buf[LHR_DATARES_ENC_OFFSET_TYPE];
+    memcpy(&aad[2], &buf[LHR_DATARES_ENC_OFFSET_SENDER],   4);
+    memcpy(&aad[6], &buf[LHR_DATARES_ENC_OFFSET_RECEIVER], 4);
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    memcpy(&nonce[0], &buf[LHR_DATARES_ENC_OFFSET_SENDER], 4);
+    memcpy(&nonce[5], &buf[LHR_DATARES_ENC_OFFSET_WIRECOUNTER], 3);
+
+    uint8_t seqNumPlain;
+    lhr_err_t lastErr = LHR_ERR_AUTH_FAIL;
+
+    // nonce[4] (the counter's upper byte) is not transmitted on the wire to save
+    // bandwidth; it is brute-forced below since it changes rarely (only on
+    // wire-counter rollover), while nonce[5..7] carry the transmitted lower
+    // 3 bytes of the counter.
+    for (uint8_t upperByte = 0; upperByte < LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS; upperByte++) {
+        nonce[4] = upperByte;
+
+        lastErr = _ccmDecrypt(nonce, aad, sizeof(aad),
+                               &buf[LHR_DATARES_ENC_OFFSET_SEQ_NUM], 1,
+                               &buf[LHR_DATARES_ENC_OFFSET_MIC], &seqNumPlain);
+        if (lastErr == LHR_OK) {
+            *outSeqNum     = seqNumPlain;
+            return LHR_OK;
+        }
+    }
+
+    return lastErr;
+}

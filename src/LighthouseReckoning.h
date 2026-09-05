@@ -839,6 +839,7 @@ private:
 
         lhr_err_t _verifyAndDecryptNDAT(uint8_t* buf, size_t len, uint32_t* outSenderId, uint8_t* outHops);
         lhr_err_t _verifyRFCN(uint8_t* buf, size_t len);
+        lhr_err_t _verifyAndDecryptDATARES(uint8_t* buf, size_t len, uint8_t* outSeqNum);
 
         /**
          * @brief Encrypts a single packet payload and produces its MIC.
