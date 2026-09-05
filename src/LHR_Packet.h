@@ -151,6 +151,7 @@ constexpr uint8_t LHR_NDAT_ENC_LEN        = LHR_NDAT_ENC_OFFSET_MIC     + LHR_MI
 constexpr uint8_t LHR_RFCN_ENC_LEN        = LHR_RFCN_ENC_OFFSET_MIC     + LHR_MIC_LEN;  // Fixed total length of RFCN packet
 constexpr uint8_t LHR_DATARES_ENC_LEN     = LHR_DATARES_ENC_OFFSET_MIC  + LHR_MIC_LEN;  // Fixed total length of DATA_RES packet
 
+constexpr uint8_t LHR_MIN_VALID_PACKET_SIZE_ENC = 13;  // Minimum size: magic byte + packet type byte
 
 // ================================================================
 // Limits
