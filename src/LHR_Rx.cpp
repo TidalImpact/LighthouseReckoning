@@ -294,6 +294,8 @@ bool LighthouseReckoning::_handleDATARES(uint8_t* buf, size_t len) {
 // Packet Handlers — Encrypted
 // ================================================================
 
+#if LHR_ENCRYPTION_SUPPORTED
+
 lhr_err_t LighthouseReckoning::_verifyAndDecryptDataPacket(uint8_t* buf, size_t len, uint32_t* outSourceId, uint8_t* outSeqNum, uint8_t* outTTL, uint8_t* outPayload, size_t* outPayloadLen) {
     if (len < LHR_DATA_HEADER_ENC_LEN || len > LORA_PHY_MAX_PACKET_SIZE) {
         return LHR_ERR_ARGS;
@@ -456,3 +458,5 @@ lhr_err_t LighthouseReckoning::_verifyAndDecryptDATARES(uint8_t* buf, size_t len
 
     return lastErr;
 }
+
+#endif // LHR_ENCRYPTION_SUPPORTED
