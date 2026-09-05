@@ -294,6 +294,59 @@ bool LighthouseReckoning::_handleDATARES(uint8_t* buf, size_t len) {
 // Packet Handlers — Encrypted
 // ================================================================
 
+lhr_err_t LighthouseReckoning::_verifyAndDecryptDataPacket(uint8_t* buf, size_t len, uint32_t* outSourceId, uint8_t* outSeqNum, uint8_t* outTTL, uint8_t* outPayload, size_t* outPayloadLen) {
+    if (len < LHR_DATA_HEADER_ENC_LEN || len > LORA_PHY_MAX_PACKET_SIZE) {
+        return LHR_ERR_ARGS;
+    }
+
+    size_t payloadLen = len - LHR_DATA_HEADER_ENC_LEN;
+
+    uint8_t aad[10];
+    aad[0] = buf[LHR_DATA_ENC_OFFSET_MAGIC];
+    aad[1] = buf[LHR_DATA_ENC_OFFSET_TYPE];
+    memcpy(&aad[2], &buf[LHR_DATA_ENC_OFFSET_SENDER],   4);
+    memcpy(&aad[6], &buf[LHR_DATA_ENC_OFFSET_RECEIVER], 4);
+
+    uint8_t nonce[LHR_NONCE_LEN];
+    memcpy(&nonce[0], &buf[LHR_DATA_ENC_OFFSET_SENDER], 4);
+    memcpy(&nonce[5], &buf[LHR_DATA_ENC_OFFSET_WIRECOUNTER], 3);
+
+    // Ciphertext is the contiguous block: source(4) + seq(1) + ttl(1) + payload(N),
+    // matching the plaintext layout built in _buildEncryptedDataPacket().
+    uint8_t plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
+    uint8_t temp[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
+
+    memcpy(&temp[0], &buf[LHR_DATA_ENC_OFFSET_SOURCE], 4);
+    temp[4] = buf[LHR_DATA_ENC_OFFSET_SEQ_NUM];
+    temp[5] = buf[LHR_DATA_ENC_OFFSET_TTL];
+    memcpy(&temp[6], &buf[LHR_DATA_ENC_OFFSET_PAYLOAD], payloadLen);
+
+    lhr_err_t lastErr = LHR_ERR_AUTH_FAIL;
+
+    // nonce[4] (the counter's upper byte) is not transmitted on the wire to save
+    // bandwidth; it is brute-forced below since it changes rarely (only on
+    // wire-counter rollover), while nonce[5..7] carry the transmitted lower
+    // 3 bytes of the counter.
+    for (uint8_t upperByte = 0; upperByte < LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS; upperByte++) {
+        nonce[4] = upperByte;
+
+        lastErr = _ccmDecrypt(nonce, aad, sizeof(aad),
+                               &temp[0], LHR_DATA_ENC_HEADER_FIELDS_LEN + payloadLen,
+                               &buf[LHR_DATA_ENC_OFFSET_MIC], plaintext);
+        if (lastErr == LHR_OK) {
+            *outSourceId = ((uint32_t)plaintext[0] << 24) | ((uint32_t)plaintext[1] << 16) |
+                           ((uint32_t)plaintext[2] <<  8) |  (uint32_t)plaintext[3];
+            *outSeqNum   = plaintext[4];
+            *outTTL      = plaintext[5];
+            memcpy(outPayload, &plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN], payloadLen);
+            *outPayloadLen = payloadLen;
+            return LHR_OK;
+        }
+    }
+
+    return lastErr;
+}
+
 lhr_err_t LighthouseReckoning::_verifyAndDecryptNDAT(uint8_t* buf, size_t len, uint32_t* outSenderId, uint8_t* outHops) {
     if (len != LHR_NDAT_ENC_LEN) {
         return LHR_ERR_ARGS;
