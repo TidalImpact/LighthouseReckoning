@@ -198,7 +198,8 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
     size_t totalLen;
 #if LHR_ENCRYPTION_SUPPORTED
     if (_encryptionEnabled) {
-        lhr_err_t err = _buildEncryptedDataPacket(buf, ttl, payload, len);
+        uint32_t receiverId = _bestNeighborId;
+        lhr_err_t err = _buildEncryptedDataPacket(buf, receiverId, ttl, payload, len);
         if (err != LHR_OK) {
             LHR_DEBUG_PRINTLN("[DATA] Encrypted build failed, err=%d", err);
             return err;

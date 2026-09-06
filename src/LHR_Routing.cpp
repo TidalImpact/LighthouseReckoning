@@ -78,7 +78,7 @@ void LighthouseReckoning::_buildDATARES(uint8_t* buf, uint32_t receiverId, uint8
 
 #if LHR_ENCRYPTION_SUPPORTED
 
-lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint8_t ttl, const uint8_t* payload, size_t len){
+lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint32_t receiverId, uint8_t ttl, const uint8_t* payload, size_t len){
     if (len > LHR_MAX_PAYLOAD_ENC) {
         return LHR_ERR_TOO_LONG;
     }
@@ -92,10 +92,10 @@ lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint8_t t
     aad[4] = (_deviceId >>  8) & 0xFF;
     aad[5] = (_deviceId >>  0) & 0xFF;
 
-    aad[6] = (_bestNeighborId  >> 24) & 0xFF;
-    aad[7] = (_bestNeighborId  >> 16) & 0xFF;
-    aad[8] = (_bestNeighborId  >>  8) & 0xFF;
-    aad[9] = (_bestNeighborId  >>  0) & 0xFF;
+    aad[6] = (receiverId  >> 24) & 0xFF;
+    aad[7] = (receiverId  >> 16) & 0xFF;
+    aad[8] = (receiverId  >>  8) & 0xFF;
+    aad[9] = (receiverId  >>  0) & 0xFF;
 
 
     uint8_t plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
