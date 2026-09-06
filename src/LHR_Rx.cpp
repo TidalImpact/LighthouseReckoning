@@ -171,55 +171,27 @@ bool LighthouseReckoning::_isDuplicateData(uint32_t source, uint8_t seq) {
 // Packet Handlers — Unencrypted
 // ================================================================
 
-void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
-    uint32_t senderId;
-    uint8_t  hops;
-#if LHR_ENCRYPTION_SUPPORTED
-    if (_encryptionEnabled) {
-        lhr_err_t err = _verifyAndDecryptNDAT(buf, len, &senderId, &hops);
-        if (err != LHR_OK) {
-            LHR_DEBUG_PRINTLN("[NDAT] Decrypt/verify failed, err=%d", err);
-            return;
-        }
-    } else
-#endif // LHR_ENCRYPTION_SUPPORTED
-    {
-        senderId =
-        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 0] << 24) |
-        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 1] << 16) |
-        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 2] <<  8) |
-         (uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 3];
-
-        hops = buf[LHR_NDAT_OFFSET_HOPS];
-    }
-    
-
-    LHR_DEBUG_PRINTLN("[NDAT] From 0x%08X hops=%d rssi=%.1f", senderId, hops, rssi);
-
-    _updateNeighbor(senderId, hops, rssi);
-}
-
-
-void LighthouseReckoning::_handleRFCN(uint8_t* buf, size_t len) {
-#if LHR_ENCRYPTION_SUPPORTED
-    if (_encryptionEnabled) {
-        lhr_err_t err = _verifyRFCN(buf, len);
-        if (err != LHR_OK) {
-            LHR_DEBUG_PRINTLN("[RFCN] Decrypt/verify failed, err=%d", err);
-            return;
-        }
-    }
-#endif // LHR_ENCRYPTION_SUPPORTED
-    if (_ndatPending) {
-        LHR_DEBUG_PRINTLN("[RFCN] Response already pending, ignoring duplicate");
-        return;
-    }
-    LHR_DEBUG_PRINTLN("[RFCN] Received — scheduling NDAT response");
-    _sendNDAT();   // non-blocking: schedules jitter, actual TX happens in update()
-}
-
-
 void LighthouseReckoning::_handleDATA(uint8_t* buf, size_t len, float rssi, float snr) {
+#if LHR_ENCRYPTION_SUPPORTED
+    uint8_t packet[LHR_DATA_OFFSET_PAYLOAD + LHR_MAX_PAYLOAD_ENC];
+    size_t  packetLen = 0;
+    if (_encryptionEnabled) {
+        if (len < LHR_DATA_HEADER_ENC_LEN || len > LORA_PHY_MAX_PACKET_SIZE) {
+            return;
+        }
+
+        lhr_err_t err = _verifyAndDecryptDataPacket(buf, len, packet, &packetLen);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[DATA] Decrypt/verify failed, err=%d", err);
+            _startReceive();
+            return;
+        }
+
+        // Keep the decrypted packet alive for the rest of this function.
+        buf = packet;
+        len = packetLen;
+    }
+#endif // LHR_ENCRYPTION_SUPPORTED
     // Defensive length check (caller already validated, kept for safety)
     if (len < LHR_DATA_HEADER_LEN) {
         return;
@@ -247,7 +219,6 @@ void LighthouseReckoning::_handleDATA(uint8_t* buf, size_t len, float rssi, floa
          (uint32_t)buf[LHR_DATA_OFFSET_SENDER + 3];
 
     uint8_t seqNum = buf[LHR_DATA_OFFSET_SEQ_NUM];
-    
     LHR_DEBUG_PRINTLN("[DATA] From 0x%08X to 0x%08X ttl=%d", senderId, receiverId, buf[LHR_DATA_OFFSET_TTL]);
 
     _lastPacketSenderId = senderId;
@@ -298,6 +269,52 @@ void LighthouseReckoning::_handleDATA(uint8_t* buf, size_t len, float rssi, floa
         
         _waitingForDataRes = true;
     }
+}
+
+void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
+    uint32_t senderId;
+    uint8_t  hops;
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        lhr_err_t err = _verifyAndDecryptNDAT(buf, len, &senderId, &hops);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[NDAT] Decrypt/verify failed, err=%d", err);
+            return;
+        }
+    } else
+#endif // LHR_ENCRYPTION_SUPPORTED
+    {
+        senderId =
+        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 0] << 24) |
+        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 1] << 16) |
+        ((uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 2] <<  8) |
+         (uint32_t)buf[LHR_NDAT_OFFSET_SENDER + 3];
+
+        hops = buf[LHR_NDAT_OFFSET_HOPS];
+    }
+
+
+    LHR_DEBUG_PRINTLN("[NDAT] From 0x%08X hops=%d rssi=%.1f", senderId, hops, rssi);
+
+    _updateNeighbor(senderId, hops, rssi);
+}
+
+void LighthouseReckoning::_handleRFCN(uint8_t* buf, size_t len) {
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        lhr_err_t err = _verifyRFCN(buf, len);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[RFCN] Decrypt/verify failed, err=%d", err);
+            return;
+        }
+    }
+#endif // LHR_ENCRYPTION_SUPPORTED
+    if (_ndatPending) {
+        LHR_DEBUG_PRINTLN("[RFCN] Response already pending, ignoring duplicate");
+        return;
+    }
+    LHR_DEBUG_PRINTLN("[RFCN] Received — scheduling NDAT response");
+    _sendNDAT();   // non-blocking: schedules jitter, actual TX happens in update()
 }
 
 bool LighthouseReckoning::_handleDATARES(uint8_t* buf, size_t len) {
