@@ -195,24 +195,9 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
     
     
     uint8_t buf[LORA_PHY_MAX_PACKET_SIZE];
-    size_t totalLen;
-#if LHR_ENCRYPTION_SUPPORTED
-    if (_encryptionEnabled) {
-        uint32_t receiverId = _bestNeighborId;
-        lhr_err_t err = _buildEncryptedDataPacket(buf, receiverId, ttl, payload, len);
-        if (err != LHR_OK) {
-            LHR_DEBUG_PRINTLN("[DATA] Encrypted build failed, err=%d", err);
-            return err;
-        }
-        totalLen = LHR_DATA_ENC_OFFSET_PAYLOAD + len;
-    } else
-#endif
-    {
-        totalLen = LHR_DATA_HEADER_LEN + len;
-        _buildDataHeader(buf, ttl);
-        memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], payload, len);
-    }
-
+    size_t totalLen = LHR_DATA_HEADER_LEN + len;   // IMMER Plain-Layout, egal ob enc oder nicht
+    _buildDataHeader(buf, ttl);
+    memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], payload, len);
 
     _storeForwardPacket(buf, totalLen);
     _lastPacketSenderId = LHR_FORBIDDEN_NODE_ID;            // Set to the forbidden Id (never a real neighbor) so that

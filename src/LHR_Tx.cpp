@@ -169,6 +169,30 @@ void LighthouseReckoning::_forwardDataPacket() {
     if (_forwardLen < LHR_DATA_HEADER_LEN) {
         return;
     }
+    // Only transmit if a valid next-hop neighbor is available.
+    // LHR_FORBIDDEN_NODE_ID (0x00000000) is reserved as the invalid node Id.
+    if (_bestNeighborId == LHR_FORBIDDEN_NODE_ID) {
+        LHR_DEBUG_PRINTLN("[FWD] Not forwarding to 0x%08X ttl=%d", _bestNeighborId, _forwardBuf[LHR_DATA_OFFSET_TTL]);
+        return;
+    }
+
+    // Every wire packet — encrypted or plain — is assembled into this SEPARATE
+    // output buffer instead of _forwardBuf directly. This is a safety measure,
+    // not just an encryption-specific need: _forwardBuf is our internal/persistent
+    // handle for the packet (kept alive across the whole retry state machine in
+    // _confirmDataRes()), so it must stay untouched in its plaintext layout no
+    // matter what we do to build the actual bytes going out over the radio.
+    //
+    // This matters most for encryption, since _buildEncryptedDataPacket() would
+    // otherwise overwrite plaintext header/payload fields with ciphertext/wirecounter/
+    // MIC bytes — and because this function can run multiple times for the same
+    // packet (initial send + resends), any later resend would then encrypt garbage
+    // instead of the original data. But even in the unencrypted branch we copy into
+    // transmissionBuf rather than pointing _transmit() at _forwardBuf directly, to
+    // keep _forwardBuf's role consistent and not rely on "it happens to be safe
+    // in this branch" reasoning that could break the next time this code changes.
+    uint8_t transmissionBuf[LORA_PHY_MAX_PACKET_SIZE];
+    size_t transmissionBufLen = 0;
 
     // Set Sender Id (6..9) — this is OUR Id now (we're forwarding the hop),
     // distinct from _lastPacketSenderId below, which is the neighbor that
@@ -208,14 +232,28 @@ void LighthouseReckoning::_forwardDataPacket() {
 
     _pendingAckSeqNum = _forwardBuf[LHR_DATA_OFFSET_SEQ_NUM];
 
-    // Only transmit if a valid next-hop neighbor is available.
-    // LHR_FORBIDDEN_NODE_ID (0x00000000) is reserved as the invalid node Id.
-    if (_bestNeighborId != LHR_FORBIDDEN_NODE_ID) {  
-        _transmit(_forwardBuf, _forwardLen);
+#if LHR_ENCRYPTION_SUPPORTED
+    if (_encryptionEnabled) {
+        uint32_t receiverId =
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 0] << 24) |
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 1] << 16) |
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 2] <<  8) |
+             (uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 3];
+        size_t   payloadLen  = _forwardLen - LHR_DATA_HEADER_LEN;
+        lhr_err_t err = _buildEncryptedDataPacket(transmissionBuf, receiverId,  _forwardBuf[LHR_DATA_OFFSET_TTL], &_forwardBuf[LHR_DATA_OFFSET_PAYLOAD], payloadLen);
+        if (err != LHR_OK) {
+            LHR_DEBUG_PRINTLN("[DATA] Encrypted build failed, err=%d", err);
+            return;
+        }
+        transmissionBufLen = LHR_DATA_HEADER_ENC_LEN + payloadLen;
+    } else
+#endif
+    {
+        transmissionBufLen = _forwardLen;
+        memcpy(transmissionBuf, _forwardBuf, transmissionBufLen);
     }
-    else {
-        LHR_DEBUG_PRINTLN("[FWD] Not forwarding to 0x%08X ttl=%d", _bestNeighborId, _forwardBuf[LHR_DATA_OFFSET_TTL]);
-    }
+
+    _transmit(transmissionBuf, transmissionBufLen);
     
 }   
 
