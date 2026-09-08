@@ -62,7 +62,6 @@ lhr_init_result_t LighthouseReckoning::beginAsHome(PhysicalLayer* radio, uint32_
     _hopsToHome = LHR_HOPS_AS_HOME; 
     _role       = LHR_ROLE_HOME;
     _randState = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
-    _sendNDAT();
     LHR_DEBUG_PRINTLN("[INIT] Home init");
     return LHR_INIT_OK;
 }
@@ -82,7 +81,6 @@ lhr_init_result_t LighthouseReckoning::beginAsNode(PhysicalLayer* radio, uint32_
     _hopsToHome = LHR_HOPS_AS_RELAY_INIT;
     _role       = LHR_ROLE_NODE;
     _randState = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
-    _sendRFCN();
     return LHR_INIT_OK;
 }
 
@@ -195,7 +193,7 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
     
     
     uint8_t buf[LORA_PHY_MAX_PACKET_SIZE];
-    size_t totalLen = LHR_DATA_HEADER_LEN + len;   // IMMER Plain-Layout, egal ob enc oder nicht
+    size_t totalLen = LHR_DATA_HEADER_LEN + len;   // Always use Plain layout, regardless of encryption
     _buildDataHeader(buf, ttl);
     memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], payload, len);
 
