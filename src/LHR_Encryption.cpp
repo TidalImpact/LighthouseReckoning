@@ -75,7 +75,7 @@ lhr_err_t LighthouseReckoning::_initNonceCounter() {
 }
 
 lhr_err_t LighthouseReckoning::_nextNonceCounter(uint32_t* outCounter) {
-    if (_encryptionNonceCounter == 0xFFFFFFFFUL) {
+    if (_encryptionNonceCounter + LHR_NONCE_BATCH_SIZE >= LHR_NONCE_COUNTER_MAX) {
         return LHR_ERR_NONCE_EXHAUSTED;
     }
 
