@@ -78,7 +78,7 @@ void LighthouseReckoning::_buildDATARES(uint8_t* buf, uint32_t receiverId, uint8
 
 #if LHR_ENCRYPTION_SUPPORTED
 
-lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint32_t receiverId, uint8_t ttl, const uint8_t* payload, size_t len){
+lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint32_t receiverId, uint32_t sourceId, uint8_t ttl, uint8_t seqNum, const uint8_t* payload, size_t len) {
     if (len > LHR_MAX_PAYLOAD_ENC) {
         return LHR_ERR_TOO_LONG;
     }
@@ -99,13 +99,14 @@ lhr_err_t LighthouseReckoning::_buildEncryptedDataPacket(uint8_t* buf, uint32_t 
 
 
     uint8_t plaintext[LHR_DATA_ENC_HEADER_FIELDS_LEN + LHR_MAX_PAYLOAD_ENC];
-    plaintext[0] = (_deviceId >> 24) & 0xFF;
-    plaintext[1] = (_deviceId >> 16) & 0xFF;
-    plaintext[2] = (_deviceId >>  8) & 0xFF;
-    plaintext[3] = (_deviceId >>  0) & 0xFF;
+    // Packet Sourc Id
+    plaintext[0] = (sourceId >> 24) & 0xFF;
+    plaintext[1] = (sourceId >> 16) & 0xFF;
+    plaintext[2] = (sourceId >>  8) & 0xFF;
+    plaintext[3] = (sourceId >>  0) & 0xFF;
 
-    _pendingAckSeqNum = _currentSeqNum;
-    plaintext[4] = _currentSeqNum++;
+    _pendingAckSeqNum = seqNum;
+    plaintext[4] = seqNum;
 
     plaintext[5] = ttl;
 

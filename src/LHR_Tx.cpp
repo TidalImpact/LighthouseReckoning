@@ -239,8 +239,13 @@ void LighthouseReckoning::_forwardDataPacket() {
             ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 1] << 16) |
             ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 2] <<  8) |
              (uint32_t)_forwardBuf[LHR_DATA_OFFSET_RECEIVER + 3];
+        uint32_t sourceId =
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_SOURCE + 0] << 24) |
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_SOURCE + 1] << 16) |
+            ((uint32_t)_forwardBuf[LHR_DATA_OFFSET_SOURCE + 2] <<  8) |
+             (uint32_t)_forwardBuf[LHR_DATA_OFFSET_SOURCE + 3];
         size_t   payloadLen  = _forwardLen - LHR_DATA_HEADER_LEN;
-        lhr_err_t err = _buildEncryptedDataPacket(transmissionBuf, receiverId,  _forwardBuf[LHR_DATA_OFFSET_TTL], &_forwardBuf[LHR_DATA_OFFSET_PAYLOAD], payloadLen);
+        lhr_err_t err = _buildEncryptedDataPacket(transmissionBuf, receiverId, sourceId, _forwardBuf[LHR_DATA_OFFSET_TTL], _forwardBuf[LHR_DATA_OFFSET_SEQ_NUM], &_forwardBuf[LHR_DATA_OFFSET_PAYLOAD], payloadLen);
         if (err != LHR_OK) {
             LHR_DEBUG_PRINTLN("[DATA] Encrypted build failed, err=%d", err);
             return;
