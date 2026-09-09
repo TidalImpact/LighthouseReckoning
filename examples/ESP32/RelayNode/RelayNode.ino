@@ -93,15 +93,32 @@ void setup() {
     Serial.print("Init: ");
     Serial.println(state);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.println("Fehler beim Initialisieren! Pruefe Pins und Stromversorgung.");
+        Serial.println("Initialization failed! Check the wiring and power supply.");
         while (true) { delay(1000); }
     }
 
     setupLoRaReceiveInterrupt();
 
+    // Encryption example
+    const uint8_t encryptionKey[16] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10
+    };
+
+    lhr.setEncryptionKey(encryptionKey, sizeof(encryptionKey));
+
+    // Enable encryption by uncommenting the following lines:
+    // lhr_err_t encErr = lhr.enableEncryption(true);
+    // Serial.printf("enableEncryption() -> %d\n", encErr);
+
     lhr.beginAsNode(radio, getDeviceId());
 }
 
 void loop() {
+    // Relay nodes require no application logic.
+    // Forwarding happens automatically inside update():
+    //   - Incoming DATA packets are relayed to the best known next-hop neighbor.
+    //   - NDAT beacons are sent periodically to advertise the route to Home.
+    //   - RFCN requests are sent when no route is known yet.
     lhr.update();
 }
