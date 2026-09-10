@@ -4,8 +4,10 @@
 annotated with the corresponding reference implementation's constants,
 types, default configuration values, and public API.*
 
-**Protocol Version:** V1 (packet format 1.0.0)
-**Status:** Stable packet format, describes the V1 wire protocol only.
+**Protocol Version:** V1.1 (packet format 1.1.0)
+**Status:** Stable packet format for both unencrypted (1.0.0) and Encrypted
+(1.1.0) operation. Replay protection under Encryption Mode is not yet
+specified (see [PROTOCOL.md](PROTOCOL.md) §9.1).
 
 **Creator / Lead Developer:** Fynn Jannis Schulz
 
@@ -42,6 +44,7 @@ types, default configuration values, and public API.*
 14. [Appendix C — Reserved and Sentinel Value Symbols](#14-appendix-c--reserved-and-sentinel-value-symbols)
 15. [Appendix D — Public API Reference](#15-appendix-d--public-api-reference)
 16. [Appendix E — Testing and Debug Features](#16-appendix-e--testing-and-debug-features)
+17. [Appendix F — Encryption Backend](#17-appendix-f--encryption-backend)
 
 ---
 
@@ -225,6 +228,59 @@ Source ID and Sequence Number.
 > entries are overwritten in circular order once full, described as
 > "sufficient to cover typical retry bursts."
 
+### 2.10 Encryption Mode
+
+A per-device configuration setting determining whether packets use the
+unencrypted (§3.1-3.4) or Encrypted (§3.5) wire layout. When enabled, all
+devices share a single 128-bit AES Pre-Shared Key (PSK).
+
+> **Reference implementation:** encryption support is gated at compile
+> time by `LHR_ENCRYPTION_SUPPORTED` (1 on ESP32/RP2040 targets, which
+> provide the non-volatile storage the Nonce Counter requires; 0 elsewhere,
+> e.g. classic AVR — the entire encryption code path, including
+> `setEncryptionKey()`/`enableEncryption()`/`isEncryptionEnabled()`, is
+> compiled out on unsupported targets). The PSK is set via
+> `setEncryptionKey(const uint8_t* key, size_t len)`, which requires
+> exactly `LHR_AES_KEY_LEN` (16) bytes and only stores the key
+> (`LHR_ERR_INVALID_KEY_LEN` otherwise) — it does not itself enable
+> encryption. `enableEncryption(true)` activates it but fails with
+> `LHR_ERR_NO_KEY_SET` if no key has been set yet; `enableEncryption(false)`
+> always succeeds. Current state is queryable via `isEncryptionEnabled()`.
+
+### 2.11 Nonce
+
+An 8-byte value combining the encrypting device's Node ID and a per-device
+monotonic counter, per `PROTOCOL.md` §2.11.
+
+> **Reference implementation:** byte layout is `LHR_NONCE_LEN = 8`,
+> `LHR_NONCE_OFFSET_DEVICEID = 0` (4 bytes), and
+> `LHR_NONCE_OFFSET_NONCE_COUNTER = 4` (4 bytes). The Nonce Counter is a
+> per-device `uint32_t` (`_encryptionNonceCounter`), shared across all four
+> packet types — DATA, NDAT, RFCN, and DATA_RES draw from the same
+> sequence, never a separate counter per type. It is persisted to
+> non-volatile storage in batches of `LHR_NONCE_BATCH_SIZE` (100):
+> `enableEncryption(true)` reserves the next 100 values by writing
+> `counter + 100` to storage before any are used, and each time the in-RAM
+> counter reaches the currently reserved boundary, a further 100 are
+> reserved and written. This bounds flash wear to one write per 100
+> packets, at the cost of skipping up to 100 counter values on an
+> ungraceful restart. Storage backend is `Preferences`/NVS on ESP32 and an
+> `EEPROM`-emulation on RP2040/Pico, both implemented in
+> `LHR_EncryptionStore.cpp`.
+>
+> The Nonce Counter High-Byte Search Bound referenced in `PROTOCOL.md`
+> §2.11 is fixed at compile time to
+> `LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS = 10` (candidate values `0`–`9`), with
+> no runtime setter — every device built from this library therefore
+> agrees on the bound automatically; interoperating with a
+> differently-configured implementation would require changing this
+> constant and recompiling. `LHR_NONCE_COUNTER_MAX` is derived from it:
+> `((LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS − 1) << 24) | 0x00FFFFFF`. Once the
+> Nonce Counter would exceed this value, further encryption attempts fail
+> with `LHR_ERR_NONCE_EXHAUSTED` (surfaced from `sendData()`,
+> `_sendNDAT()`, `_sendRFCN()`, or `_sendDATARES()` as applicable) rather
+> than transmitting.
+
 ---
 
 ## 3. Packet Format
@@ -252,6 +308,9 @@ Minimum structurally valid packet size: 2 bytes.
 > buffer failing the magic-byte check, or any per-type exact/minimum length
 > check, is silently discarded — the radio is simply put back into receive
 > mode, with no distinct error code raised for "malformed packet."
+> When Encryption Mode is enabled, the minimum-size check instead uses
+> `LHR_MIN_VALID_PACKET_SIZE_ENC = 13` (the smallest Encrypted-variant
+> packet, RFCN) in place of `LHR_MIN_VALID_PACKET_SIZE`.
 
 ---
 
@@ -383,6 +442,134 @@ in hops, to Home.
 
 **Behavior on receipt:** as specified in `PROTOCOL.md` §3.4 — normative,
 unchanged.
+
+---
+
+### 3.5 Encrypted Packet Variants
+
+As specified in `PROTOCOL.md` §3.5 — AAD/Ciphertext/Other field split,
+per-hop decrypt-then-re-encrypt for DATA.
+
+> **Reference implementation:** all four Encrypted-variant builders
+> (`_buildEncryptedDataPacket`, `_buildEncryptedNDAT`, `_buildEncryptedRFCN`,
+> `_buildEncryptedDATARES`) and verifiers (`_verifyAndDecryptDataPacket`,
+> `_verifyAndDecryptNDAT`, `_verifyRFCN`, `_verifyAndDecryptDATARES`) live
+> in `LHR_Routing.cpp` / `LHR_Rx.cpp` respectively, gated behind
+> `#if LHR_ENCRYPTION_SUPPORTED`. AES-128-CCM itself (`_ccmEncrypt`/
+> `_ccmDecrypt`) is a thin wrapper around `aes128_ccm_encrypt()`/
+> `aes128_ccm_decrypt()`, implemented by a vendored third-party backend —
+> see [Appendix F](#17-appendix-f--encryption-backend).
+>
+> A relayed DATA packet is fully decrypted (in `_handleDATA()`) before any
+> TTL/duplicate/forwarding logic runs — reusing the same plaintext-layout
+> code path as unencrypted DATA, by normalizing into a local buffer at the
+> unencrypted offsets (§3.1) rather than duplicating that logic for the
+> encrypted layout. On forwarding, `_forwardDataPacket()` always
+> re-encrypts the packet into a separate transmission buffer with a fresh
+> Nonce Counter value, never reusing ciphertext bytes from the received
+> packet — this is deliberate: a resend by the local retry mechanism (§5)
+> MUST use a distinct Nonce from the original transmission.
+
+#### 3.5.1 DATA — Encrypted (`0xE0`)
+
+**Purpose:** As §3.1, with confidentiality and authenticity added per
+`PROTOCOL.md` §3.5.1.
+
+| Offset | Length | Field |
+|---|---|---|
+| 0 | 1 | Magic |
+| 1 | 1 | Type (`0xE0`) |
+| 2 | 4 | Source ID (ciphertext) |
+| 6 | 4 | Sender ID |
+| 10 | 4 | Receiver ID |
+| 14 | 1 | Sequence Number (ciphertext) |
+| 15 | 1 | TTL (ciphertext) |
+| 16 | 3 | Wire Nonce Counter |
+| 19 | 4 | MIC |
+| 23 | variable | Payload (ciphertext) |
+
+> **Reference implementation:** offsets are `LHR_DATA_ENC_OFFSET_MAGIC=0`,
+> `LHR_DATA_ENC_OFFSET_TYPE=1`, `LHR_DATA_ENC_OFFSET_SOURCE=2`,
+> `LHR_DATA_ENC_OFFSET_SENDER=6`, `LHR_DATA_ENC_OFFSET_RECEIVER=10`,
+> `LHR_DATA_ENC_OFFSET_SEQ_NUM=14`, `LHR_DATA_ENC_OFFSET_TTL=15`,
+> `LHR_DATA_ENC_OFFSET_WIRECOUNTER=16`, `LHR_DATA_ENC_OFFSET_MIC=19`,
+> `LHR_DATA_ENC_OFFSET_PAYLOAD=23`. Fixed header length
+> `LHR_DATA_HEADER_ENC_LEN = LHR_DATA_ENC_OFFSET_PAYLOAD` (23); max payload
+> `LHR_MAX_PAYLOAD_ENC = LORA_PHY_MAX_PACKET_SIZE - LHR_DATA_HEADER_ENC_LEN`
+> (232 bytes with the default 255-byte ceiling — 7 bytes less than the
+> unencrypted `LHR_MAX_PAYLOAD`, the overhead of the Wire Nonce Counter and
+> MIC). The plaintext block assembled for encryption is
+> `LHR_DATA_ENC_HEADER_FIELDS_LEN` (6: Source ID + Sequence Number + TTL)
+> followed by the payload; AAD is Magic, Type, Sender ID, Receiver ID (10
+> bytes).
+
+#### 3.5.2 NDAT — Encrypted (`0xE1`)
+
+**Purpose:** As §3.3, with confidentiality and authenticity added per
+`PROTOCOL.md` §3.5.2.
+
+| Offset | Length | Field |
+|---|---|---|
+| 0 | 1 | Magic |
+| 1 | 1 | Type (`0xE1`) |
+| 2 | 4 | Sender ID |
+| 6 | 1 | Hops (ciphertext) |
+| 7 | 3 | Wire Nonce Counter |
+| 10 | 4 | MIC |
+
+> **Reference implementation:** offsets are `LHR_NDAT_ENC_OFFSET_MAGIC=0`,
+> `LHR_NDAT_ENC_OFFSET_TYPE=1`, `LHR_NDAT_ENC_OFFSET_SENDER=2`,
+> `LHR_NDAT_ENC_OFFSET_HOPS=6`, `LHR_NDAT_ENC_OFFSET_WIRECOUNTER=7`,
+> `LHR_NDAT_ENC_OFFSET_MIC=10`; total length
+> `LHR_NDAT_ENC_LEN = LHR_NDAT_ENC_OFFSET_MIC + LHR_MIC_LEN` (14).
+
+#### 3.5.3 RFCN — Encrypted (`0xE2`)
+
+**Purpose:** As §3.4, with authenticity added per `PROTOCOL.md` §3.5.3 —
+unlike unencrypted RFCN, this variant carries a Sender ID and is
+authenticated before any NDAT response is sent.
+
+| Offset | Length | Field |
+|---|---|---|
+| 0 | 1 | Magic |
+| 1 | 1 | Type (`0xE2`) |
+| 2 | 4 | Sender ID |
+| 6 | 3 | Wire Nonce Counter |
+| 9 | 4 | MIC |
+
+> **Reference implementation:** offsets are `LHR_RFCN_ENC_OFFSET_MAGIC=0`,
+> `LHR_RFCN_ENC_OFFSET_TYPE=1`, `LHR_RFCN_ENC_OFFSET_SENDER=2`,
+> `LHR_RFCN_ENC_OFFSET_WIRECOUNTER=6`, `LHR_RFCN_ENC_OFFSET_MIC=9`; total
+> length `LHR_RFCN_ENC_LEN = LHR_RFCN_ENC_OFFSET_MIC + LHR_MIC_LEN` (13).
+> `_verifyRFCN()` is called from `_handleRFCN()` before scheduling any NDAT
+> response; a failed verification is logged and the packet is otherwise
+> ignored — no response is sent.
+
+#### 3.5.4 DATA_RES — Encrypted (`0xE3`)
+
+**Purpose:** As §3.2, with confidentiality and authenticity added per
+`PROTOCOL.md` §3.5.4.
+
+| Offset | Length | Field |
+|---|---|---|
+| 0 | 1 | Magic |
+| 1 | 1 | Type (`0xE3`) |
+| 2 | 4 | Sender ID |
+| 6 | 4 | Receiver ID |
+| 10 | 1 | Sequence Number (ciphertext) |
+| 11 | 3 | Wire Nonce Counter |
+| 14 | 4 | MIC |
+
+> **Reference implementation:** offsets are
+> `LHR_DATARES_ENC_OFFSET_MAGIC=0`, `LHR_DATARES_ENC_OFFSET_TYPE=1`,
+> `LHR_DATARES_ENC_OFFSET_SENDER=2`, `LHR_DATARES_ENC_OFFSET_RECEIVER=6`,
+> `LHR_DATARES_ENC_OFFSET_SEQ_NUM=10`,
+> `LHR_DATARES_ENC_OFFSET_WIRECOUNTER=11`,
+> `LHR_DATARES_ENC_OFFSET_MIC=14`; total length
+> `LHR_DATARES_ENC_LEN = LHR_DATARES_ENC_OFFSET_MIC + LHR_MIC_LEN` (18).
+> Receiver ID is read directly from the wire (it is AAD, not ciphertext)
+> to cheaply reject a DATA_RES not addressed to this Node before
+> attempting decryption.
 
 ---
 
@@ -524,22 +711,35 @@ protocol itself.
 
 ## 9. Security Considerations
 
-As specified in `PROTOCOL.md` §9 — no encryption, no authentication, no
-replay protection beyond ordinary duplicate detection in V1.
+As specified in `PROTOCOL.md` §9.1-9.3 (unencrypted: no encryption, no
+authentication, no replay protection beyond duplicate detection;
+Encrypted: AES-128-CCM confidentiality/authenticity per hop, shared-PSK
+network-wide, hop-by-hop not end-to-end, no replay protection, no key
+distribution/rotation mechanism).
 
-> **Reference implementation:** no cryptographic primitives, keys, or MAC
-> fields appear anywhere in the reviewed type or packet definitions,
-> consistent with the above.
+> **Reference implementation:** the AES-128-CCM backend is a vendored,
+> unmodified third-party implementation — see
+> [Appendix F](#17-appendix-f--encryption-backend). No key-distribution,
+> key-rotation, or secure-storage mechanism for the PSK is provided;
+> `setEncryptionKey()` copies the key as given into RAM
+> (`_encryptionKey`), with no protection beyond whatever the host MCU
+> itself provides against physical extraction. The reference examples
+> (`examples/*/*.ino`) hardcode an illustrative test key and call
+> `setEncryptionKey()` unconditionally but leave `enableEncryption(true)`
+> commented out by default, so a fresh checkout of any example runs
+> unencrypted until a user explicitly opts in — and, per `PROTOCOL.md`
+> §9.3/§10, must do so identically and with the identical key on every
+> device in the network.
 
 ---
 
 ## 10. Compatibility and Versioning
 
-As specified in `PROTOCOL.md` §10.
+As specified in PROTOCOL.md §10 (packet format 1.1.0 extends 1.0.0 with optional Encryption Mode; unencrypted wire traffic is byte-identical to 1.0.0; no mixed-mode operation).
 
 > **Reference implementation:** library version is tracked separately from
 > the packet format version, via `LHR_VERSION_MAJOR`/`MINOR`/`PATCH`
-> (currently 1.0.0) and exposed at runtime through `library_version()` and
+> (currently 1.1.0) and exposed at runtime through `library_version()` and
 > `getVersionString()`. An experimental per-hop metadata extension exists
 > alongside the stable packet formats — see
 > [Appendix E](#16-appendix-e--testing-and-debug-features).
@@ -596,7 +796,63 @@ Total fixed length: 7 bytes.
 
 Total fixed length: 2 bytes. Carries no other fields.
 
-### 11.5 Reserved / Sentinel Values
+### 11.5 DATA — Encrypted (`0xE0`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE0`. |
+| 2 | 4 | Source ID (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 32-bit Source ID. |
+| 6 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | AAD; also forms the Nonce's device-ID field. |
+| 10 | 4 | Receiver ID | 32-bit unsigned integer | Big-endian | AAD. |
+| 14 | 1 | Sequence Number (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Sequence Number. |
+| 15 | 1 | TTL (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit TTL. |
+| 16 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter. |
+| 19 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+| 23 | variable | Payload (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the application payload. |
+
+Fixed header length: 23 bytes. Default max payload: 232 bytes.
+
+### 11.6 NDAT — Encrypted (`0xE1`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE1`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | AAD; also the Nonce's device-ID field. |
+| 6 | 1 | Hops (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Hops value. |
+| 7 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter. |
+| 10 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+
+Total fixed length: 14 bytes.
+
+### 11.7 RFCN — Encrypted (`0xE2`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE2`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | AAD; also the Nonce's device-ID field. |
+| 6 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter. |
+| 9 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag over the empty message. |
+
+Total fixed length: 13 bytes. Carries no ciphertext field.
+
+### 11.8 DATA_RES — Encrypted (`0xE3`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE3`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | AAD; also the Nonce's device-ID field. |
+| 6 | 4 | Receiver ID | 32-bit unsigned integer | Big-endian | AAD. |
+| 10 | 1 | Sequence Number (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Sequence Number. |
+| 11 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter. |
+| 14 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+
+Total fixed length: 18 bytes.
+
+### 11.9 Reserved / Sentinel Values
 
 | Field | Value | Meaning |
 |---|---|---|
@@ -627,6 +883,15 @@ reference implementation's own API-level status and error reporting.
 | `LHR_ERR_WRONG_ROLE` | 9 | Operation not supported by the current node role (e.g. Home calling `sendData()`). |
 | `LHR_ERR_NOT_CONFIGURED` | 10 | Setup (`beginAsHome`/`beginAsNode`) was not completed before use. |
 | `LHR_ERR_DUTY_CYCLE_EXHAUSTED` | 11 | Duty cycle budget exhausted; cannot send now. |
+| `LHR_ERR_INVALID_KEY_LEN` | 12 | Key length passed to `setEncryptionKey()` is not exactly 16 bytes. |
+| `LHR_ERR_NO_KEY_SET` | 13 | `enableEncryption(true)` called before `setEncryptionKey()`. |
+| `LHR_ERR_ENCRYPT_FAIL` | 14 | Underlying AES-128-CCM encrypt operation failed. |
+| `LHR_ERR_DECRYPT_FAIL` | 15 | Underlying AES-128-CCM decrypt operation failed. |
+| `LHR_ERR_AUTH_FAIL` | 16 | MIC verification failed — packet tampered with or wrong key. |
+| `LHR_ERR_NONCE_EXHAUSTED` | 17 | Nonce Counter reached `LHR_NONCE_COUNTER_MAX`. |
+| `LHR_ERR_STORE_NOT_INIT` | 18 | Nonce-counter storage backend was not opened before use. |
+| `LHR_ERR_STORE_WRITE_FAIL` | 19 | NVS/EEPROM write for the Nonce Counter failed. |
+| `LHR_ERR_STORE_READ_FAIL` | 20 | NVS/EEPROM read for the Nonce Counter failed. |
 
 ### `lhr_tx_result` — transmission attempt outcomes
 
@@ -688,8 +953,8 @@ All values below are configurable defaults in the reference implementation
 | `LHR_DEFAULT_RESEND_DELAY_MS` | 5,000 ms | `setRetryDelays()` | Delay before the first DATA resend attempt. |
 | `LHR_DEFAULT_RFCN_WAIT_MS` | 5,000 ms | `setRetryDelays()` | Time to wait for NDAT replies after sending RFCN. |
 | `LHR_DEFAULT_MAX_LOCAL_RETRIES` | 3 | `setMaxLocalRetries()` | Maximum DATA_RES retry cycles before dropping a packet. |
-| TX watchdog timeout | 10,000 ms | `setTxWatchdogTimeout()` | Force-recovers a transmit stuck in progress (e.g. a missed radio interrupt). |
-| Reactive-advertisement spacing | 1,000 ms | *(none)* | Minimum gap between event-triggered NDAT advertisements. |
+| `TX watchdog timeout` | 10,000 ms | `setTxWatchdogTimeout()` | Force-recovers a transmit stuck in progress (e.g. a missed radio interrupt). |
+| `Reactive-advertisement spacing` | 1,000 ms | *(none)* | Minimum gap between event-triggered NDAT advertisements. |
 | `LHR_NEIGHBOR_TIMEOUT_BEACONS` | 3 | *(none)* | Missed beacon intervals before a neighbor is pruned. |
 | `LHR_MAX_NEIGHBORS` | 50 | *(compile-time `#define`)* | Neighbor table capacity. |
 | `LHR_SEEN_CACHE_SIZE` | 8 | *(none)* | Size of the recently-seen-packet history for duplicate detection. |
@@ -697,7 +962,16 @@ All values below are configurable defaults in the reference implementation
 | `LHR_DEFAULT_DUTY_CYCLE_PERCENT` | 1.0 % (EU868 g1), limiting off by default | `toggleDutyCycleLimit()` / `setDutyCycleLimit()` / `setDutyCycleLimitMs()` | Duty-cycle budget once enabled. Region-specific. |
 | `LORA_PHY_MAX_PACKET_SIZE` | 255 bytes | *(compile-time `#define`)* | Assumed physical-layer maximum packet size. |
 | `LHR_MAX_PAYLOAD` | 239 bytes | *(derived)* | `LORA_PHY_MAX_PACKET_SIZE` − 16-byte DATA header. |
-| NDAT jitter range | 0–500 ms | *(none)* | Random pre-transmit delay applied to scheduled NDAT sends. |
+| `NDAT jitter range` | 0–500 ms | *(none)* | Random pre-transmit delay applied to scheduled NDAT sends. |
+| `LHR_AES_KEY_LEN` | 16 bytes | *(fixed)* | Required PSK length for `setEncryptionKey()`. |
+| `LHR_MIC_LEN` | 4 bytes | *(fixed)* | AES-128-CCM authentication tag length. |
+| `LHR_NONCE_LEN` | 8 bytes | *(fixed)* | Full Nonce length (device ID + counter). |
+| `LHR_NONCE_BATCH_SIZE` | 100 | *(none, compile-time)* | Nonce Counter values reserved per non-volatile storage write. |
+| `LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS` | 10 | *(none, compile-time)* | Nonce Counter High-Byte Search Bound (`PROTOCOL.md` §2.11); candidates `0`–`9`. |
+| `LHR_NONCE_COUNTER_MAX` | ≈1.68 × 10⁸ | *(derived)* | `((LHR_NONCE_UPPER_BYTE_MAX_ATTEMPTS − 1) << 24) \| 0x00FFFFFF`. |
+| `LHR_MAX_PAYLOAD_ENC` | 232 bytes | *(derived)* | `LORA_PHY_MAX_PACKET_SIZE` − 23-byte encrypted DATA header. |
+| `LHR_MIN_VALID_PACKET_SIZE_ENC` | 13 bytes | *(fixed)* | Minimum structurally valid Encrypted-variant packet (RFCN). |
+
 
 ---
 
@@ -725,7 +999,7 @@ typedef void (*LHR_DataReceivedCallback)(uint8_t* buf, size_t len);
 | Method | Description |
 |---|---|
 | `static int library_version(int& major, int& minor, int& patch)` | Library version as separate integers. Always returns 0. |
-| `static const char* getVersionString()` | Library version as a string (e.g. `"1.0.0"`). |
+| `static const char* getVersionString()` | Library version as a string (e.g. `"1.1.0"`). |
 | `lhr_init_result_t beginAsHome(PhysicalLayer* radio, uint32_t deviceId)` | Initializes this device as Home. Resets all internal state. |
 | `lhr_init_result_t beginAsNode(PhysicalLayer* radio, uint32_t deviceId)` | Initializes this device as a Sensor/Relay Node. Resets all internal state and immediately broadcasts RFCN. |
 | `void setTTL(uint8_t ttl)` | Sets the default TTL for outgoing DATA packets. |
@@ -751,6 +1025,9 @@ typedef void (*LHR_DataReceivedCallback)(uint8_t* buf, size_t len);
 | `uint32_t getSecondBestNeighborId() const` | Second-best routing neighbor's Node ID; falls back to the best neighbor if no distinct second-best exists. |
 | `bool isBusy() const` | Whether the node can currently accept a new transmission. |
 | `void onDataReceived(LHR_DataReceivedCallback cb)` | Registers the callback invoked on Home when a DATA packet arrives. Buffer is valid only for the duration of the call. |
+| `lhr_err_t setEncryptionKey(const uint8_t* key, size_t len)` | Sets the AES-128 PSK (16 bytes exactly). Does not itself enable encryption. Compiled out unless `LHR_ENCRYPTION_SUPPORTED`. |
+| `lhr_err_t enableEncryption(bool state)` | Enables/disables Encryption Mode. Enabling requires a key already set (`LHR_ERR_NO_KEY_SET` otherwise); disabling always succeeds. Compiled out unless `LHR_ENCRYPTION_SUPPORTED`. |
+| `bool isEncryptionEnabled()` | Current Encryption Mode state. Compiled out unless `LHR_ENCRYPTION_SUPPORTED`. |
 | `int16_t getLastRadioError() const` | RadioLib status code from the last `startTransmit()` call. |
 | `void printNeighborTable()` | Debug-only: prints the neighbor table. Compiled out unless `LHR_DEBUG` is defined. |
 | `void setMinimumAcceptedHops(uint8_t hops)` | Testing utility — see [Appendix E](#16-appendix-e--testing-and-debug-features). |
@@ -807,3 +1084,23 @@ after any already present, earliest hop first. The block is silently
 omitted, rather than truncating the application payload, if insufficient
 space remains under the maximum packet size — so its presence cannot be
 assumed even when the feature is enabled.
+
+## 17. Appendix F — Encryption Backend
+
+The reference implementation's AES-128-CCM implementation
+(`src/aes128_ccm_backend/`) is a vendored, unmodified third-party library,
+not original to this project:
+
+- **Source:** https://github.com/odzhan/aes_dust
+- **License:** Unlicense (public domain)
+- **Files:** `aes128_ecb.c/h` (AES-128 block cipher, key schedule),
+  `aes128_ccm.c/h` (CCM mode construction: CBC-MAC authentication, CTR-mode
+  encryption, on top of the ECB primitive)
+
+This backend is used exactly as provided; no modifications have been made.
+`NOTICE.md` in the same directory records the same attribution. It has not
+undergone an independent third-party security review for use in this project.
+Lighthouse Reckoning integrates the vendored AES-128-CCM primitives through
+its own encryption wrapper (`LHR_Encryption.cpp`), which handles key management,
+nonce-counter management, nonce construction, and calls to the backend's
+encryption and decryption functions.
