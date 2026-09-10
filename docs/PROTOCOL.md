@@ -2,8 +2,11 @@
 
 *Wire protocol specification for the Lighthouse Reckoning LoRa mesh network.*
 
-**Protocol Version:** V1 (packet format 1.0.0)
-**Status:** Stable packet format, describes the V1 wire protocol only.
+**Protocol Version:** V1.1 (packet format 1.1.0) — extends V1.0.0 with
+an optional Encryption Mode (Section 2.10). The wire format used when
+Encryption Mode is disabled is unchanged from 1.0.0.
+**Status:** Stable packet format for both unencrypted (1.0.0) and
+Encrypted (1.1.0) operation.
 
 **Creator / Lead Developer:** Fynn Jannis Schulz
 
@@ -282,6 +285,83 @@ fixed by this specification. Receiving a DATA_RES for a hop still occurs
 even when the underlying DATA packet turns out to be a duplicate — see
 [Section 3.1](#31-data).
 
+### 2.10 Encryption Mode
+
+A per-device configuration setting, independent of Node role, that
+determines whether DATA, NDAT, RFCN, and DATA_RES packets are transmitted
+and interpreted using their unencrypted form (Section 3.1-3.4) or their
+Encrypted variant (Section 3.5). When enabled, a single 128-bit AES key —
+the Pre-Shared Key (PSK) — is used by every device in the network for both
+encrypting outgoing packets and decrypting/authenticating incoming ones.
+There is no mechanism within the protocol for negotiating, distributing, or
+verifying that all devices share the same Encryption Mode configuration or
+PSK; this is an operational requirement on the deployment, not something
+enforced by the wire protocol itself (see Section 9.3).
+
+- **Set by:** the device operator, prior to the device joining the
+  network. This specification does not define a runtime negotiation
+  mechanism.
+- **Changed by:** the device operator; changing this setting on a device
+  already participating in a network with a different Encryption Mode
+  configured results in that device being unable to interoperate with its
+  neighbors (Section 10).
+- **Invalid when:** not applicable — Encryption Mode is a binary
+  configuration, not a value with defined/undefined states.
+
+### 2.11 Nonce
+
+An 8-byte value consisting of the encrypting Node ID and a Nonce Counter.
+It MUST be unique for each encryption operation under a given PSK and
+encrypting Node ID. It is used by AES-128-CCM to encrypt and authenticate
+a single Encrypted-variant packet.
+
+| Offset | Length | Field |
+|---|---|---|
+| 0 | 4 | Node ID of the encrypting device |
+| 4 | 4 | Nonce Counter |
+
+- **Node ID of the encrypting device** — the Node ID of whichever device
+  performed this specific encryption operation. For a relayed DATA packet,
+  this is the relay's own Node ID at the moment it re-encrypts the packet
+  for the next hop (i.e., equal to that transmission's Sender ID field),
+  not the packet's Source ID.
+- **Nonce Counter** — a 32-bit unsigned integer, unique per encrypting
+  device, that MUST increase by exactly one for every encryption operation
+  that device performs, regardless of packet type (DATA, NDAT, RFCN, and
+  DATA_RES share the same counter sequence on a given device — they are not
+  counted separately). A device MUST persist this counter, or otherwise
+  guarantee, across restarts, that no counter value already used with the
+  current PSK is ever reused. The specific persistence mechanism (e.g.
+  reserving values ahead of use in non-volatile storage) is an
+  implementation matter, not fixed by this specification, provided the
+  no-reuse guarantee holds.
+
+**Wire representation.** Only the low 24 bits of the Nonce Counter (its
+three least significant bytes) are transmitted, in the Wire Nonce Counter
+field present in every Encrypted-variant packet (Section 3.5). The most
+significant byte of the Nonce Counter is never transmitted and MUST be
+reconstructed by the receiver by testing candidate values, starting from
+0, against the MIC (Section 3.5) — this is the only means available to
+recover a value that is not present on the wire.
+
+A device's Nonce Counter High-Byte Search Bound is the number of
+candidate values a receiver tests before discarding a packet as invalid
+(see Nonce Counter exhaustion, below). This specification does not fix a
+value for it, but — analogous to the PSK (Section 9.3) — every device
+in the same network MUST be configured with an identical bound: a
+receiver using a smaller bound than a sender's actual Nonce Counter
+high-byte values would be unable to decrypt otherwise-valid traffic from
+that sender. The search order among candidates is not significant to the
+result and is left to the implementation.
+
+Nonce Counter exhaustion. Once incrementing a device's Nonce Counter
+would cause its most significant byte to exceed the network's configured
+Nonce Counter High-Byte Search Bound, that device MUST NOT encrypt
+further traffic using the current PSK. This specification does not
+define recovery behavior beyond noting that continued operation requires
+either a new PSK, a renegotiated bound, or some other mechanism outside
+this specification's scope.
+
 ---
 
 ## 3. Packet Format
@@ -556,6 +636,120 @@ sent the RFCN.
 
 ---
 
+### 3.5 Encrypted Packet Variants
+
+The following defines the wire layout used for DATA, NDAT, RFCN, and
+DATA_RES when Encryption Mode (Section 2.10) is enabled, in place of the
+layouts given in Sections 3.1-3.4. Packet Type values (Section 3.0) are
+unchanged; Encryption Mode does not introduce new Type values, and a
+device determines which layout to apply based solely on its own local
+Encryption Mode configuration (Section 9.3), not on any field within the
+packet.
+
+Every Encrypted-variant packet carries three kinds of fields:
+
+- **Additional Authenticated Data (AAD)** — transmitted in clear text, and
+  included in the authentication computation: tampering with an AAD field
+  is detected and causes authentication to fail. Consists of Magic, Type,
+  and any Node ID fields a relaying device must read without decrypting
+  the packet (Sender ID, and Receiver ID where present).
+- **Ciphertext fields** — encrypted, and recoverable only by a device
+  holding the Pre-Shared Key. Consists of whichever fields, from the
+  unencrypted layout of the same packet type, are not needed by a relaying
+  device prior to decryption (e.g. Source ID, Sequence Number, TTL, and
+  Payload for DATA).
+- **Wire Nonce Counter and MIC** — transmitted in clear text, neither
+  encrypted nor included as AAD, but required to reconstruct the Nonce
+  (Section 2.11) and verify authenticity respectively. Although the Wire
+  Nonce Counter is not itself authenticated data, tampering with it causes
+  the reconstructed nonce to be incorrect, which in turn causes MIC
+  verification to fail — so tampering is still detected, indirectly.
+
+A receiver MUST discard an Encrypted-variant packet for which MIC
+verification does not succeed for any candidate Nonce Counter high byte
+(Section 2.11), without further processing.
+
+#### 3.5.1 DATA — Encrypted (`0xE0`)
+
+**Structure:** A fixed 23-byte header followed by a variable-length
+encrypted application payload.
+
+| Offset | Length | Field | AAD / Ciphertext / Other |
+|---|---|---|---|
+| 0 | 1 | Magic | AAD |
+| 1 | 1 | Type (`0xE0`) | AAD |
+| 2 | 4 | Source ID | Ciphertext |
+| 6 | 4 | Sender ID | AAD |
+| 10 | 4 | Receiver ID | AAD |
+| 14 | 1 | Sequence Number | Ciphertext |
+| 15 | 1 | TTL | Ciphertext |
+| 16 | 3 | Wire Nonce Counter | Other (see above) |
+| 19 | 4 | MIC | Other (see above) |
+| 23 | variable | Payload | Ciphertext |
+
+Fixed header length: 23 bytes. All other behavior (creation, reception,
+forwarding, discard conditions) is as specified in Section 3.1, applied to
+the plaintext values of Source ID, Sequence Number, TTL, and Payload after
+decryption — a relaying Node MUST fully decrypt a received DATA packet
+before it can inspect or act on these fields, and MUST re-encrypt the
+packet, under a freshly generated Nonce (Section 2.11) using its own Node
+ID, before forwarding it.
+
+#### 3.5.2 NDAT — Encrypted (`0xE1`)
+
+**Structure:** Fixed length, 14 bytes total.
+
+| Offset | Length | Field | AAD / Ciphertext / Other |
+|---|---|---|---|
+| 0 | 1 | Magic | AAD |
+| 1 | 1 | Type (`0xE1`) | AAD |
+| 2 | 4 | Sender ID | AAD |
+| 6 | 1 | Hops | Ciphertext |
+| 7 | 3 | Wire Nonce Counter | Other |
+| 10 | 4 | MIC | Other |
+
+Total fixed length: 14 bytes. All other behavior is as specified in
+Section 3.3, applied to the plaintext Hops value after decryption.
+
+#### 3.5.3 RFCN — Encrypted (`0xE2`)
+
+**Structure:** Fixed length, 13 bytes total.
+
+| Offset | Length | Field | AAD / Ciphertext / Other |
+|---|---|---|---|
+| 0 | 1 | Magic | AAD |
+| 1 | 1 | Type (`0xE2`) | AAD |
+| 2 | 4 | Sender ID | AAD |
+| 6 | 3 | Wire Nonce Counter | Other |
+| 9 | 4 | MIC | Other |
+
+Total fixed length: 13 bytes. Unlike its unencrypted counterpart, the
+Encrypted RFCN carries a Sender ID and is authenticated: a receiver MUST
+verify the MIC before responding, and MUST NOT respond to an Encrypted
+RFCN that fails verification. This closes the spoofing gap noted for
+unencrypted RFCN in Section 9.2 — an attacker without the PSK cannot
+produce an Encrypted RFCN that any device will accept and respond to. All
+other behavior is as specified in Section 3.4.
+
+#### 3.5.4 DATA_RES — Encrypted (`0xE3`)
+
+**Structure:** Fixed length, 18 bytes total.
+
+| Offset | Length | Field | AAD / Ciphertext / Other |
+|---|---|---|---|
+| 0 | 1 | Magic | AAD |
+| 1 | 1 | Type (`0xE3`) | AAD |
+| 2 | 4 | Sender ID | AAD |
+| 6 | 4 | Receiver ID | AAD |
+| 10 | 1 | Sequence Number | Ciphertext |
+| 11 | 3 | Wire Nonce Counter | Other |
+| 14 | 4 | MIC | Other |
+
+Total fixed length: 18 bytes. All other behavior is as specified in
+Section 3.2, applied to the plaintext Sequence Number after decryption.
+
+---
+
 ## 4. Routing Algorithm
 
 Routing in Lighthouse Reckoning is a distance-vector algorithm using hop
@@ -755,41 +949,104 @@ of the wire format.
 
 ## 9. Security Considerations
 
-- **No encryption.** V1 defines no mechanism for encrypting any part of a
-  packet. Node IDs, sequence numbers, hop counts, and application payload
-  are all transmitted in clear text and are readable by any receiver within
-  radio range.
-- **No authentication.** V1 defines no field for message authentication,
-  integrity verification, or origin authentication (no signature, message
-  authentication code, or nonce is present in any packet type). Nothing in
-  the protocol as specified prevents a transmitter from claiming an
+### 9.1 Encryption Mode (Optional)
+
+Lighthouse Reckoning defines an optional Encryption Mode (Section 2.10),
+using AES-128 in CCM mode (Counter with CBC-MAC) with a 32-bit
+authentication tag, and a single 128-bit Pre-Shared Key (PSK) shared
+identically by every device in the network. When enabled, the Encrypted
+variant of each packet type (Section 3.5) is used in place of the
+corresponding packet type described in Sections 3.1-3.4.
+
+Encryption Mode provides:
+- **Confidentiality** for the fields marked as ciphertext in Section 3.5 for
+  each packet type (e.g. Source ID, Sequence Number, TTL, and Payload for
+  DATA), against any party without knowledge of the PSK.
+- **Authenticity and integrity**, per hop, via the CCM authentication tag:
+  a packet that was altered in transit, or was not produced by a holder of
+  the PSK, fails MIC verification and MUST be discarded.
+
+Encryption Mode does **not** provide:
+- **End-to-end confidentiality or integrity.** Encryption is applied
+  independently at each hop (Section 2.10), not from Source to Home. Every
+  relaying Node decrypts each packet it forwards in full and re-encrypts it
+  before transmitting further; the plaintext is therefore visible to every
+  relay along the path, not only to Source and Home.
+- **Protection against a compromised or malicious participant.** Because
+  every device in the network shares the same PSK, any device holding it
+  is equally capable of decrypting, forging, or injecting traffic of any
+  type. Encryption Mode defends against parties outside the network, not
+  against misbehavior by a participant already possessing the key.
+- **Replay protection.** MIC verification confirms a packet was produced
+  by a holder of the PSK and has not been altered; it does not confirm the
+  packet is not a captured retransmission of previously valid traffic. A
+  previously observed, validly-encrypted packet, replayed unmodified while
+  the PSK remains unchanged, passes MIC verification identically to the
+  original. The Duplicate Detection mechanism (Section 2.9) exists to
+  handle the protocol's own retries and is not a defense against
+  adversarial replay. Replay protection is anticipated in a later revision
+  and is out of scope for this document.
+- **Key distribution or rotation.** This specification does not define how
+  the PSK is established, distributed, or rotated between devices; key
+  provisioning is an out-of-band, deployment-specific concern.
+
+### 9.2 Unencrypted Operation
+
+When Encryption Mode is disabled, all considerations of the original V1.0.0
+specification apply unchanged:
+
+- **No encryption.** Node IDs, sequence numbers, hop counts, and
+  application payload are all transmitted in clear text and are readable
+  by any receiver within radio range.
+- **No authentication.** Nothing prevents a transmitter from claiming an
   arbitrary Node ID, forging a DATA_RES, or injecting DATA, NDAT, or RFCN
   traffic.
-- **No replay protection beyond duplicate detection.** The duplicate
-  detection described in [Section 2.9](#29-duplicate-detection) exists to
-  handle the protocol's own retries, not to defend against adversarial
-  replay of captured traffic.
-- **Future extensions.** Encryption and authentication are anticipated in a
-  later protocol revision beyond V1. They are out of scope for this
-  document.
+- **No replay protection beyond duplicate detection**, for the same reason
+  given in Section 9.1.
+
+### 9.3 Mode Consistency Requirement
+
+All devices participating in the same network MUST be configured with the
+same Encryption Mode (enabled or disabled), the identical PSK, and the
+identical Nonce Counter High-Byte Search Bound, when enabled.
+There is no field in any packet that indicates which mode was used to
+produce it; a device determines how to parse a received packet solely from
+its own local configuration. Devices configured inconsistently do not
+interoperate: see Section 10.
 
 ---
 
 ## 10. Compatibility and Versioning
 
-**V1 packet format.** This document describes packet format version 1.0.0:
-a single fixed Magic byte (`0xA4`), a single Type byte distinguishing four
-packet types (`0xE0`–`0xE3`), and the fixed and variable field layouts
-described in [Section 3](#3-packet-format).
+**V1.1 packet format.** This document describes packet format version
+1.1.0, which extends the V1.0.0 framing model described in Section 3.0-3.4
+with an optional Encrypted variant of each packet type (Section 3.5). The
+Magic byte, Type byte values, and unencrypted packet layouts are unchanged
+from V1.0.0.
 
-**Extensibility.** The Type field is one byte wide, of which V1 defines
-four values, leaving room for additional packet types to be introduced in
-future revisions without changing the framing model.
+**Backward compatibility.** A network configured with Encryption Mode
+disabled produces and expects wire traffic byte-for-byte identical to a
+V1.0.0 deployment. A device predating the introduction of Encryption Mode
+remains fully interoperable with 1.1.0 devices, provided Encryption Mode is
+disabled network-wide.
 
-**Future direction.** Beyond the scope of this V1 specification, later
-protocol revisions are anticipated to add encryption/authentication and to
-revise the routing model. Any such changes are subject to their own,
-separate specification and are not described further here.
+**No mixed-mode operation.** Because there is no in-band signal
+distinguishing an Encrypted-variant packet from its unencrypted counterpart
+other than differing fixed/minimum length (Section 3.0), a device MUST NOT
+be deployed into a network using the opposite Encryption Mode configuration
+from its neighbors. Doing so results in every DATA/NDAT/RFCN/DATA_RES
+packet exchanged between mismatched devices being discarded as
+structurally invalid — via the length check in Section 3.0 — rather than
+misinterpreted.
+
+**Extensibility.** The Type field is one byte wide, of which V1.1 still
+defines only four values, leaving room for additional packet types to be
+introduced in future revisions without changing the framing model.
+
+**Future direction.** Beyond this revision, later protocol revisions are
+anticipated to add replay protection under Encryption Mode and to revise
+the routing model. Any such changes are subject to their own, separate
+specification and are not described further here.
 
 ---
 
@@ -842,7 +1099,63 @@ Total fixed length: 7 bytes.
 
 Total fixed length: 2 bytes. Carries no other fields.
 
-### 11.5 Reserved / Sentinel Values
+### 11.5 DATA — Encrypted (`0xE0`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE0`. |
+| 2 | 4 | Source ID (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 32-bit Source ID. |
+| 6 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | Node ID of the device that produced this transmission's ciphertext. Also forms part of the AAD and the Nonce (Section 2.11). |
+| 10 | 4 | Receiver ID | 32-bit unsigned integer | Big-endian | Node ID of the intended immediate next-hop recipient. Part of the AAD. |
+| 14 | 1 | Sequence Number (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Sequence Number. |
+| 15 | 1 | TTL (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit TTL. |
+| 16 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter (Section 2.11). |
+| 19 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+| 23 | variable | Payload (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the application payload. Length = total packet length − 23. |
+
+Fixed header length: 23 bytes.
+
+### 11.6 NDAT — Encrypted (`0xE1`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE1`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | Node ID of the advertising device. Part of the AAD and the Nonce. |
+| 6 | 1 | Hops (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Hops value. |
+| 7 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter (Section 2.11). |
+| 10 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+
+Total fixed length: 14 bytes.
+
+### 11.7 RFCN — Encrypted (`0xE2`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE2`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | Node ID of the requesting device. Part of the AAD and the Nonce. |
+| 6 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter (Section 2.11). |
+| 9 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag over the empty message. |
+
+Total fixed length: 13 bytes. Carries no ciphertext field.
+
+### 11.8 DATA_RES — Encrypted (`0xE3`)
+
+| Offset | Length | Field | Data Type | Byte Order | Description |
+|---|---|---|---|---|---|
+| 0 | 1 | Magic | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xA4`. |
+| 1 | 1 | Type | 8-bit unsigned integer | N/A (1 byte) | Fixed value `0xE3`. |
+| 2 | 4 | Sender ID | 32-bit unsigned integer | Big-endian | Node ID of the device issuing this acknowledgment. Part of the AAD and the Nonce. |
+| 6 | 4 | Receiver ID | 32-bit unsigned integer | Big-endian | Node ID this acknowledgment is directed to. Part of the AAD. |
+| 10 | 1 | Sequence Number (ciphertext) | Octet string | N/A | AES-128-CCM ciphertext of the 8-bit Sequence Number. |
+| 11 | 3 | Wire Nonce Counter | 24-bit unsigned integer | Big-endian | Low 24 bits of the 32-bit Nonce Counter (Section 2.11). |
+| 14 | 4 | MIC | Octet string | N/A | 32-bit AES-128-CCM authentication tag. |
+
+Total fixed length: 18 bytes.
+
+### 11.9 Reserved / Sentinel Values
 
 | Field | Value | Meaning |
 |---|---|---|
