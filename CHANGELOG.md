@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-09-11
+
+### Added
+
+* Optional AES-128-CCM encryption and authentication for all packet types: `DATA`, `NDAT`, `RFCN`, and `DATA_RES`.
+* Persistent nonce counter storage with crash-safe counter reservation on ESP32 and RP2040.
+* Encryption-related public API: `setEncryptionKey()`, `enableEncryption()`, and `isEncryptionEnabled()`.
+* New error codes for encryption, authentication, nonce, and persistent storage failures.
+* Protocol documentation for encrypted packet formats, nonce handling, encryption mode, and security considerations.
+
+### Changed
+
+* Encrypted DATA packets now use a larger packet header, and maximum payload size and duty-cycle airtime calculations account for the additional encryption overhead.
+* Relayed encrypted DATA packets are decrypted and authenticated before forwarding and re-encrypted with a new nonce.
+* Updated protocol version and API documentation to reflect the v1.1.0 encryption features.
+
+### Known Limitations
+
+* Encryption is currently supported only on ESP32 and RP2040.
+* Every node in a given mesh must use the same encryption key. Nodes with encryption enabled and nodes without encryption enabled cannot interoperate.
+* Replay protection is not currently implemented.
+* Encryption is hop-by-hop rather than end-to-end; relaying nodes decrypt and re-encrypt packets before forwarding them.
+
 ## [1.0.0] - 2026-08-11
 
 Initial public release of Lighthouse Reckoning.
