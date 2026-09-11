@@ -72,7 +72,7 @@
 // ================================================================
 
 #define LHR_VERSION_MAJOR (1)
-#define LHR_VERSION_MINOR (0)
+#define LHR_VERSION_MINOR (1)
 #define LHR_VERSION_PATCH (0)
 
 
@@ -102,7 +102,7 @@ public:
     }
     
     /**
-     * @brief Get the library version as a human-readable string (e.g. "1.0.0").
+     * @brief Get the library version as a human-readable string (e.g. "1.1.0").
      * @return Pointer to a static, null-terminated version string.
      */
     static const char* getVersionString() {
