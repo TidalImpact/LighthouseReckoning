@@ -3,7 +3,7 @@
  * File:       LHR_Encryption.cpp
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.0.0
+ * Version:    1.1.0
  * Platform:   ESP32 / RP2040 (Pico)
  * Description:
  *   AES-128 encryption logic for LighthouseReckoning packets.

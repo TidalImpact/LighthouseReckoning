@@ -3,6 +3,7 @@
  * File:       LHR_Tx.cpp
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
+ * Version:    1.1.0
  * Platform:   Any (Arduino / RP2040 / ESP32)
  * Description:
  *   Radio transmission primitives, beacon/RFCN/NDAT sending, DATA packet

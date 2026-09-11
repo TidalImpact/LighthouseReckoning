@@ -3,7 +3,7 @@
  * File:       LighthouseReckoning.h
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.0.0
+ * Version:    1.1.0
  * Platform:   Validated on SX126x-family radios (e.g. SX1262). Other
  *             RadioLib-supported chips (SX127x/RFM9x, SX128x, etc.) are
  *             expected to work for TX/RX, but channel-activity detection
