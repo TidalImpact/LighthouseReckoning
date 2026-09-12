@@ -273,6 +273,7 @@ void LighthouseReckoning::_handleDATA(uint8_t* buf, size_t len, float rssi, floa
 }
 
 void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
+    (void)len;
     uint32_t senderId;
     uint8_t  hops;
 #if LHR_ENCRYPTION_SUPPORTED
@@ -301,6 +302,8 @@ void LighthouseReckoning::_handleNDAT(uint8_t* buf, size_t len, float rssi) {
 }
 
 void LighthouseReckoning::_handleRFCN(uint8_t* buf, size_t len) {
+    (void)buf;
+    (void)len;
 #if LHR_ENCRYPTION_SUPPORTED
     if (_encryptionEnabled) {
         lhr_err_t err = _verifyRFCN(buf, len);
