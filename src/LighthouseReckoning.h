@@ -67,6 +67,13 @@
   #include "aes128_ccm_backend/aes128_ccm.h"
 #endif
 
+#if defined(ARDUINO_ARCH_RP2040)
+    #include <pico/mutex.h>
+#elif defined(ESP32)
+    #include <freertos/FreeRTOS.h>
+    #include <freertos/portmacro.h>
+#endif
+
 // ================================================================
 // Version
 // ================================================================
@@ -981,4 +988,57 @@ private:
     // Not intended for normal application use.
     void _appendHopMetadata(float rssi, float snr);
     bool _routingDataEnabled = false;
+
+
+    // ------------------------------------------------------------------
+    // Internal — Dual Core Safety Helpers
+    // ------------------------------------------------------------------
+
+    class Lock {
+    #if defined(ARDUINO_ARCH_RP2040)
+        public:
+            Lock()        { recursive_mutex_init(&_mtx); }
+            ~Lock()       { }
+            void lock()   { recursive_mutex_enter_blocking(&_mtx); }
+            void unlock() { recursive_mutex_exit(&_mtx); }
+        private:
+            recursive_mutex_t  _mtx;
+
+    #elif defined(ESP32)
+        public:
+            Lock()        {}
+            ~Lock()       {}
+            void lock()   { portENTER_CRITICAL(&_mux); }
+            void unlock() { portEXIT_CRITICAL(&_mux); }
+        private:
+            portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+
+    #else
+        public:
+            // Single-core / unsupported platforms
+            Lock()        {}
+            ~Lock()       {}
+            void lock()   {}
+            void unlock() {}
+
+    #endif
+    };
+
+    class LockGuard {
+        public:
+            explicit LockGuard (Lock& l) : _l(l) {
+                _l.lock();
+            }
+            ~LockGuard () {
+                _l.unlock();
+            }
+            // non-copyable
+            LockGuard(const LockGuard&) = delete;
+            LockGuard& operator=(const LockGuard&) = delete;
+        private:
+            Lock& _l;
+    };
+
+    mutable Lock _lock;
+
 };
