@@ -167,6 +167,7 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len) {
 }
 
 lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t ttl) {
+    LockGuard guard(_lock);
     if (_radio == nullptr)                          return LHR_ERR_RADIO_NOT_INIT;
     if (payload == nullptr)                         return LHR_ERR_ARGS;
     if (len == 0)                                   return LHR_ERR_ARGS;
