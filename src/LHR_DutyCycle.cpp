@@ -81,6 +81,7 @@ void LighthouseReckoning::toggleDutyCycleLimit(bool state) {
 }
 
 void LighthouseReckoning::setDutyCycleLimit(float percent) {
+    LockGuard guard(_lock);
     // Changing the duty-cycle limit resets the current accounting window.
     _useDutyCycleLimit  = (percent > 0.0f);
     _dutyCyclePercent   = percent;
@@ -100,6 +101,7 @@ void LighthouseReckoning::setDutyCycleLimitMs(unsigned long msPerWindow) {
 // ================================================================
 
 float LighthouseReckoning::getDutyCycleUsage() {
+    LockGuard guard(_lock);
     _updateDutyCycleWindow();
     unsigned long limit = _dutyCycleLimitMs();
 
@@ -111,15 +113,18 @@ float LighthouseReckoning::getDutyCycleUsage() {
 }
 
 unsigned long LighthouseReckoning::getDutyCycleUsedMs() {
+    LockGuard guard(_lock);
     _updateDutyCycleWindow();
     return _dutyCycleUsedMs;
 }
 
 unsigned long LighthouseReckoning::getDutyCycleRemainingMs() {
+    LockGuard guard(_lock);
     _updateDutyCycleWindow();
     return _dutyCycleRemainingMs();
 }
 
 unsigned long LighthouseReckoning::getDutyCycleLimitMs() const {
+    LockGuard guard(_lock);
     return _dutyCycleLimitMs();
 }
