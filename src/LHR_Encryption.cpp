@@ -25,6 +25,7 @@
 // ================================================================
 
 lhr_err_t LighthouseReckoning::enableEncryption(bool state){
+    LockGuard guard(_lock);
     if (!state) {
         _encryptionEnabled = false;
         return LHR_OK;
@@ -42,6 +43,7 @@ lhr_err_t LighthouseReckoning::enableEncryption(bool state){
 
 
 lhr_err_t LighthouseReckoning::setEncryptionKey(const uint8_t* key, size_t len){
+    LockGuard guard(_lock);
     if (key == nullptr) {
         return LHR_ERR_ARGS;
     }
