@@ -1006,12 +1006,12 @@ private:
 
     #elif defined(ESP32)
         public:
-            Lock()        {}
-            ~Lock()       {}
-            void lock()   { portENTER_CRITICAL(&_mux); }
-            void unlock() { portEXIT_CRITICAL(&_mux); }
+            Lock()        { _mtx = xSemaphoreCreateRecursiveMutex(); }
+            ~Lock()       { vSemaphoreDelete(_mtx); }
+            void lock()   { xSemaphoreTakeRecursive(_mtx, portMAX_DELAY); }
+            void unlock() { xSemaphoreGiveRecursive(_mtx); }
         private:
-            portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+            SemaphoreHandle_t _mtx;
 
     #else
         public:
