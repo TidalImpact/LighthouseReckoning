@@ -48,6 +48,7 @@ void LighthouseReckoning::_reset() {
 // ================================================================
 
 lhr_init_result_t LighthouseReckoning::beginAsHome(PhysicalLayer* radio, uint32_t deviceId) {
+    LockGuard guard(_lock);
     if (deviceId == LHR_FORBIDDEN_NODE_ID) {
         LHR_DEBUG_PRINTLN("[INIT] Never use the Id 0x00000000. It is strictly reserved for internal use. Using this Id will interfere with core infrastructure and may result in undefined behavior, communication failures, and other system problems.");
         return LHR_INIT_ERR_INVALID_ARGS;
@@ -67,6 +68,7 @@ lhr_init_result_t LighthouseReckoning::beginAsHome(PhysicalLayer* radio, uint32_
 }
 
 lhr_init_result_t LighthouseReckoning::beginAsNode(PhysicalLayer* radio, uint32_t deviceId) {
+    LockGuard guard(_lock);
     if (deviceId == LHR_FORBIDDEN_NODE_ID) {
         LHR_DEBUG_PRINTLN("[INIT] Never use the Id 0x00000000. It is strictly reserved for internal use. Using this Id will interfere with core infrastructure and may result in undefined behavior, communication failures, and other system problems.");
         return LHR_INIT_ERR_INVALID_ARGS;
@@ -136,6 +138,7 @@ uint32_t LighthouseReckoning::getSecondBestNeighborId() const {
 }
 
 bool LighthouseReckoning::isBusy() const {
+    LockGuard guard(_lock);
     return _waitingForDataRes || _txInProgress;
 }
 
@@ -220,6 +223,7 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
 // Main non-blocking state machine.
 // Handles RX, TX completion, retries, routing advertisements and beacons.
 lhr_update_result_t LighthouseReckoning::update() {
+    LockGuard guard(_lock);
     if (_role == LHR_ROLE_NONE) {
         // Node has not been configured as either Home or Relay yet.
         return LHR_UPDATE_NOT_CONFIGURED;
