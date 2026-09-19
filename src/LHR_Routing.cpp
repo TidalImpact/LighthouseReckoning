@@ -473,6 +473,7 @@ int LighthouseReckoning::_findBestNeighbor() {
 
 void LighthouseReckoning::printNeighborTable() {
 #ifdef LHR_DEBUG
+    LockGuard guard(_lock);
     // Debug-only utility for manual inspection during development.
     // Compiled out entirely unless LHR_DEBUG is defined — no runtime cost in release builds.
     int best = _findBestNeighbor();
