@@ -1,7 +1,7 @@
 # Lighthouse Reckoning
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.1.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-informational.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%7C%20RP2040%20%7C%20ESP32-lightgrey.svg)
 ![RadioLib](https://img.shields.io/badge/built%20on-RadioLib-orange.svg)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22033929-blue.svg)](https://doi.org/10.5281/zenodo.22033929)
