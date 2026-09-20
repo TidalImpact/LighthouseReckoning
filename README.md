@@ -4,7 +4,7 @@
 ![Version](https://img.shields.io/badge/version-1.1.0-informational.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%7C%20RP2040%20%7C%20ESP32-lightgrey.svg)
 ![RadioLib](https://img.shields.io/badge/built%20on-RadioLib-orange.svg)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22033930-blue.svg)](https://doi.org/10.5281/zenodo.22033930)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22033929-blue.svg)](https://doi.org/10.5281/zenodo.22033929)
 
 
 **A LoRa mesh networking library for Arduino-family microcontrollers.**
