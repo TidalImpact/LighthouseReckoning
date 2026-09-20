@@ -71,7 +71,7 @@
     #include <pico/mutex.h>
 #elif defined(ESP32)
     #include <freertos/FreeRTOS.h>
-    #include <freertos/portmacro.h>
+    #include <freertos/semphr.h>
 #endif
 
 // ================================================================
