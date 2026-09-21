@@ -3,7 +3,7 @@
  * File:       LHR_EncryptionStore.cpp
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.1.0
+ * Version:    1.2.0
  * Platform:   ESP32 / RP2040 (Pico)
  * Description:
  *   Platform-specific persistent storage for the security nonce counter.

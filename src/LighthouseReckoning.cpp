@@ -3,7 +3,7 @@
  * File:       LighthouseReckoning.cpp
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.1.0
+ * Version:    1.2.0
  * Platform:   Any (Arduino / RP2040 / ESP32)
  * Description:
  *   Core lifecycle, configuration, status API, and the main update()

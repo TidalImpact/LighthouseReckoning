@@ -3,7 +3,7 @@
  * File:       LHR_Packet.h
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.1.0
+ * Version:    1.2.0
  * Platform:   Any (Arduino / RP2040 / ESP32)
  * Description:
  *   Packet identifiers, header layouts, field offsets, and size
