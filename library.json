@@ -1,6 +1,6 @@
 {
   "name": "LighthouseReckoning",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Lightweight LoRa mesh networking with automatic multi-hop routing toward a Home node, neighbor discovery, and hop-by-hop delivery acknowledgments.",
   "keywords": [
     "lora",
