@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-09-22
+
+### Added
+
+* Cross-core (dual-core) safety for RP2040 and ESP32: public API functions (`beginAsHome()`, `beginAsNode()`, `sendData()`, `update()`, `isBusy()`, duty-cycle getters/setters, encryption functions) and select internal/debug functions (`printNeighborTable()`) are now guarded by an internal recursive lock.
+
+### Changed
+
+* Updated file headers and protocol/version references to v1.2.0.
+* README now references the general Zenodo DOI instead of a version-specific one.
+
+### Fixed
+
+* Fixed unused-parameter compiler warnings in `_handleNDAT()` and `_handleRFCN()` on MCUs without encryption support.
+
 ## [1.1.0] - 2026-09-11
 
 ### Added
