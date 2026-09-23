@@ -392,6 +392,22 @@ public:
 
 
     // ------------------------------------------------------------------
+    // Power management
+    // ------------------------------------------------------------------
+    /**
+     * @brief Returns the time in milliseconds until update() must be called again.
+     *
+     * @return Milliseconds until the next scheduled event, or 0 if update()
+     *         should be called immediately (e.g. a pending IRQ).
+     *
+     * @note Relevant only for applications that sleep between update() calls
+     *       to save power. In a standard polling loop, update() can simply
+     *       be called as frequently as possible.
+     */
+    unsigned long getNextUpdateInMs() const;
+
+
+    // ------------------------------------------------------------------
     // Callbacks
     // ------------------------------------------------------------------
 
