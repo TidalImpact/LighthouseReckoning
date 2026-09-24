@@ -155,6 +155,10 @@ constexpr uint8_t LHR_SEEN_CACHE_SIZE = 8;
 // in LHR_Rx.cpp). 8 entries covers typical retry bursts; increase if
 // many concurrent senders are expected to produce overlapping retries.
 
+constexpr unsigned long LHR_NEXT_UPDATE_UNKNOWN = 0xFFFFFFFFUL;
+// Sentinel returned by getNextUpdateInMs() when no event is scheduled
+// yet (e.g. before begin*() has been called).
+
 
 constexpr uint32_t LHR_NONCE_BATCH_SIZE = 100;
 // Nonce counter reservation batch size for persistent storage writes.
