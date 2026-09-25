@@ -144,6 +144,61 @@ bool LighthouseReckoning::isBusy() const {
 
 
 // ================================================================
+// Power management
+// ================================================================
+
+unsigned long LighthouseReckoning::getNextUpdateInMs() const {
+    LockGuard guard(_lock);
+
+    if (_role == LHR_ROLE_NONE) {
+        return LHR_NEXT_UPDATE_UNKNOWN;
+    }
+
+    unsigned long now = LHR_MILLIS();
+
+    // Rollover-safe
+    auto dueIn = [&](unsigned long dueAtMs) -> unsigned long {
+        long delta = (long)(dueAtMs - now);
+        return (delta > 0) ? (unsigned long)delta : 0;
+    };
+
+    if (_txInProgress) {
+        if (_txDone) return 0;
+        return dueIn(_txStartMs + _txMaxDurationMs);
+    }
+
+    if (_packetReceived) {
+        return 0;
+    }
+
+    if (_waitingForDataRes) {
+        if (!_dataResCycleActive) {
+            return 0;
+        }
+        if (_requestedRFCN) {
+            return dueIn(_rfcnSendTime + _rfcnWaitDelayMs);
+        }
+        if (_dataResend) {
+            return dueIn(_dataResStartTime + (_dataResendDelayMs * 2));
+        }
+        return dueIn(_dataResStartTime + _dataResendDelayMs);
+    }
+
+    unsigned long best = LHR_NEXT_UPDATE_UNKNOWN;
+
+    if (_ndatPending) {
+        unsigned long t = dueIn(_ndatScheduledMs + _ndatJitterMs);
+        if (t < best) best = t;
+    }
+
+    unsigned long t = dueIn(_lastBeaconMs + _beaconIntervalMs);
+    if (t < best) best = t;
+
+    return best;
+}
+
+
+// ================================================================
 // Interrupt and Callback Handling
 // ================================================================
 

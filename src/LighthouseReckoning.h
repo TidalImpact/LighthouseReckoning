@@ -394,6 +394,7 @@ public:
     // ------------------------------------------------------------------
     // Power management
     // ------------------------------------------------------------------
+
     /**
      * @brief Returns the time in milliseconds until update() must be called again.
      *
