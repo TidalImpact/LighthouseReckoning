@@ -253,7 +253,7 @@ This project is licensed under the [MIT License](LICENSE).
 If you use Lighthouse Reckoning in academic or research work, please cite
 it via its archived Zenodo record:
 
-[https://doi.org/10.5281/zenodo.22033930](https://doi.org/10.5281/zenodo.22033930)
+[https://doi.org/10.5281/zenodo.22033930](https://doi.org/10.5281/zenodo.22033929)
 
 ## Research Use
 
