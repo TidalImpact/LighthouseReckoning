@@ -62,7 +62,7 @@ lhr_init_result_t LighthouseReckoning::beginAsHome(PhysicalLayer* radio, uint32_
     _deviceId   = deviceId;
     _hopsToHome = LHR_HOPS_AS_HOME; 
     _role       = LHR_ROLE_HOME;
-    _randState = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
+    _randState  = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
     LHR_DEBUG_PRINTLN("[INIT] Home init");
     return LHR_INIT_OK;
 }
@@ -82,7 +82,7 @@ lhr_init_result_t LighthouseReckoning::beginAsNode(PhysicalLayer* radio, uint32_
     _deviceId   = deviceId;
     _hopsToHome = LHR_HOPS_AS_RELAY_INIT;
     _role       = LHR_ROLE_NODE;
-    _randState = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
+    _randState  = deviceId;              // Seeds the XORshift PRNG (see _random() in LHR_Tx.cpp).
     return LHR_INIT_OK;
 }
 
@@ -182,6 +182,10 @@ unsigned long LighthouseReckoning::getNextUpdateInMs() const {
             return dueIn(_dataResStartTime + (_dataResendDelayMs * 2));
         }
         return dueIn(_dataResStartTime + _dataResendDelayMs);
+    }
+
+    if (_beaconDue  && !_waitingForDataRes) {
+        return 0;
     }
 
     unsigned long best = LHR_NEXT_UPDATE_UNKNOWN;
