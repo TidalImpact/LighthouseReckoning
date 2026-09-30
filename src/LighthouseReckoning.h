@@ -55,6 +55,7 @@
 
 #include <RadioLib.h>
 
+#include "LHR_RamConfig.h"
 #include "LHR_TypeDef.h"
 #include "LHR_Packet.h"
 #include "LHR_Routing.h"
