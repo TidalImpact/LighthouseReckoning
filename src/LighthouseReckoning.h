@@ -626,6 +626,16 @@ private:
     uint8_t _forwardBuf[LHR_DATA_HEADER_LEN + LHR_MAX_PAYLOAD];
     size_t  _forwardLen = 0;
 
+    // ------------------------------------------------------------------
+    // Own-data send buffer (optional, see LHR_RamConfig.h)
+    // ------------------------------------------------------------------
+
+#ifdef LHR_ENABLE_OWN_DATA_BUFFER
+    uint8_t _ownDataBuf[LHR_DATA_HEADER_LEN + LHR_MAX_PAYLOAD];
+    size_t  _ownDataLen     = 0;
+    bool    _ownDataPending = false;
+#endif
+
 
     // ------------------------------------------------------------------
     // RX buffer (stable storage for data callback — avoids stack-pointer issue)

@@ -57,7 +57,7 @@
 // (v1.2.0 behavior). sendData() returns LHR_ERR_BUSY whenever any
 // transmission — own or forwarded — is already in progress.
 //
-// RAM cost when enabled: ~259 bytes
+// RAM cost when enabled: ~260 bytes
 //   = LHR_DATA_HEADER_LEN (16) + LHR_MAX_PAYLOAD (239) for the buffer
 //     itself, plus a few bytes for the length member. Scales with
 //     LORA_PHY_MAX_PACKET_SIZE if overridden.
