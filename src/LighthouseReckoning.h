@@ -631,8 +631,9 @@ private:
     // ------------------------------------------------------------------
 
 #ifdef LHR_ENABLE_OWN_DATA_BUFFER
-    uint8_t _ownDataBuf[LHR_DATA_HEADER_LEN + LHR_MAX_PAYLOAD];
+    uint8_t _ownDataBuf[LHR_MAX_PAYLOAD];
     size_t  _ownDataLen     = 0;
+    uint8_t _ownDataTtl     = 0;
     bool    _ownDataPending = false;
 #endif
 
