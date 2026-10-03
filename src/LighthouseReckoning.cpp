@@ -244,7 +244,19 @@ lhr_err_t LighthouseReckoning::sendData(uint8_t* payload, size_t len, uint8_t tt
 #endif
     size_t maxPayload = LORA_PHY_MAX_PACKET_SIZE - headerLenForLimits;
     if (len > maxPayload)                      return LHR_ERR_TOO_LONG;            // The payload is too long
-    if (_waitingForDataRes)                         return LHR_ERR_BUSY;
+    if (_waitingForDataRes)  {
+#ifdef LHR_ENABLE_OWN_DATA_BUFFER
+        if (_ownDataPending) return LHR_ERR_BUSY;   // slot already occupied
+
+        memcpy(_ownDataBuf, payload, len);
+        _ownDataLen     = len;
+        _ownDataTtl     = ttl;
+        _ownDataPending = true;
+        return LHR_OK;
+#else
+        return LHR_ERR_BUSY;
+#endif
+    }
     if (_bestNeighborId == LHR_FORBIDDEN_NODE_ID)   return LHR_ERR_NO_ROUTE;
     if (_useDutyCycleLimit) {
         _updateDutyCycleWindow();

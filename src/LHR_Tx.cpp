@@ -344,6 +344,24 @@ void LighthouseReckoning::_resetDataResState() {
     _requestedRFCN      = false;
     _waitingForDataRes  = false;
     _dataResCycleActive = false;
+
+#ifdef LHR_ENABLE_OWN_DATA_BUFFER
+    if (_ownDataPending) {
+        uint8_t buf[LHR_DATA_HEADER_LEN + LHR_MAX_PAYLOAD];
+        size_t totalLen = LHR_DATA_HEADER_LEN + _ownDataLen;   // Always use Plain layout, regardless of encryption
+        _buildDataHeader(buf, _ownDataTtl);
+        memcpy(&buf[LHR_DATA_OFFSET_PAYLOAD], _ownDataBuf, _ownDataLen);
+
+        _storeForwardPacket(buf, totalLen);
+        _lastPacketSenderId = LHR_FORBIDDEN_NODE_ID;            // Set to the forbidden Id (never a real neighbor) so that
+                                                                // _forwardDataPacket()'s loop-avoidance check (_lastPacketSenderId ==
+                                                                // _bestNeighborId) never accidentally triggers for a packet we
+                                                                // originated ourselves — that check exists only to avoid sending a
+                                                                // *forwarded* packet back to the neighbor that just sent it to us.
+        _ownDataPending = false;
+        _waitingForDataRes = true;
+    }
+#endif
 }
 
 
