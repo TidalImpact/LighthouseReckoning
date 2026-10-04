@@ -139,7 +139,11 @@ uint32_t LighthouseReckoning::getSecondBestNeighborId() const {
 
 bool LighthouseReckoning::isBusy() const {
     LockGuard guard(_lock);
+#ifdef LHR_ENABLE_OWN_DATA_BUFFER
+    return _txInProgress || (_waitingForDataRes && _ownDataPending);
+#else
     return _waitingForDataRes || _txInProgress;
+#endif
 }
 
 

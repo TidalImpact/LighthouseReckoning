@@ -254,6 +254,12 @@ public:
      * on the next update() call and is retried automatically by the
      * internal DATA_RES confirmation state machine (see _confirmDataRes()).
      *
+     * If LHR_ENABLE_OWN_DATA_BUFFER is enabled (see LHR_RamConfig.h) and a
+     * forward/retry cycle is already active, the packet is queued in a
+     * single extra slot instead of being rejected — it is sent once that
+     * cycle ends. A second call while this slot is already occupied still
+     * returns LHR_ERR_BUSY.
+     *
      * @param payload  Pointer to the application payload.
      * @param len      Payload length in bytes; must be <= LHR_MAX_PAYLOAD.
      * @return LHR_OK if the packet was accepted into the send queue
@@ -268,6 +274,12 @@ public:
      * Accepted data is not sent synchronously — actual transmission begins
      * on the next update() call and is retried automatically by the
      * internal DATA_RES confirmation state machine (see _confirmDataRes()).
+     *
+     * If LHR_ENABLE_OWN_DATA_BUFFER is enabled (see LHR_RamConfig.h) and a
+     * forward/retry cycle is already active, the packet is queued in a
+     * single extra slot instead of being rejected — it is sent once that
+     * cycle ends. A second call while this slot is already occupied still
+     * returns LHR_ERR_BUSY.
      *
      * @param payload  Pointer to the application payload.
      * @param len      Payload length in bytes; must be <= LHR_MAX_PAYLOAD.
