@@ -344,6 +344,15 @@ Home, potentially across multiple relayed hops.
 > function. Only one such queued/outstanding DATA transmission is allowed
 > at a time (`LHR_ERR_BUSY` otherwise), and a newly-received DATA packet is
 > dropped outright while one is outstanding, rather than queued for later.
+> As of v1.3, when the optional
+> `LHR_ENABLE_OWN_DATA_BUFFER` feature (see `LHR_RamConfig.h`) is enabled,
+> a *locally originated* packet (via `sendData()`) may additionally be
+> queued in a single extra slot while a forward/retry cycle is active,
+> rather than being rejected outright — it is sent once that cycle ends.
+> This applies only to locally originated data; a newly-received, foreign
+> DATA packet is still dropped outright while busy, as above. A second
+> `sendData()` call while this extra slot is already occupied still
+> returns `LHR_ERR_BUSY`.
 
 **Field meanings, reception, and forwarding behavior:** as specified in
 `PROTOCOL.md` §3.1 — unchanged here, since this behavior is part of the
@@ -657,7 +666,8 @@ As specified in `PROTOCOL.md` §6.
 > [Appendix A](#12-appendix-a--result-and-error-code-reference). The
 > "single outstanding transmission" rule is surfaced as `LHR_ERR_BUSY` when
 > a new send is attempted, and as an outright drop (no distinct code) for a
-> newly-received DATA packet arriving while busy.
+> newly-received DATA packet arriving while busy —
+> with one exception for locally originated data as of v1.3; see §3.1.
 
 ---
 
@@ -706,6 +716,16 @@ protocol itself.
 > window. The window duration is described as regulatory in nature; the
 > percentage is explicitly EU868-specific and intended to be reconfigured
 > for other regions (e.g. US915, AU915).
+>
+> As of v1.3, `getNextUpdateInMs()` exposes a computed sleep/wait budget
+> derived from the parameters above plus any pending IRQ or in-flight
+> transmission — the minimum time until the next state-machine event that
+> requires an `update()` call. It returns `0` whenever immediate action is
+> required (e.g. a pending radio IRQ, an already-due beacon, or an
+> own-data packet in `_resetDataResState()`'s initial-send state). This
+> does not account for any application-level send interval — callers
+> combining it with their own periodic send timer should take the minimum
+> of both, as shown in the `SleepyNode` examples.
 
 ---
 
@@ -739,7 +759,7 @@ As specified in PROTOCOL.md §10 (packet format 1.1.0 extends 1.0.0 with optiona
 
 > **Reference implementation:** library version is tracked separately from
 > the packet format version, via `LHR_VERSION_MAJOR`/`MINOR`/`PATCH`
-> (currently 1.1.0) and exposed at runtime through `library_version()` and
+> (currently 1.3.0) and exposed at runtime through `library_version()` and
 > `getVersionString()`. An experimental per-hop metadata extension exists
 > alongside the stable packet formats — see
 > [Appendix E](#16-appendix-e--testing-and-debug-features).
@@ -972,6 +992,14 @@ All values below are configurable defaults in the reference implementation
 | `LHR_MAX_PAYLOAD_ENC` | 232 bytes | *(derived)* | `LORA_PHY_MAX_PACKET_SIZE` − 23-byte encrypted DATA header. |
 | `LHR_MIN_VALID_PACKET_SIZE_ENC` | 13 bytes | *(fixed)* | Minimum structurally valid Encrypted-variant packet (RFCN). |
 
+### B.1 Compile-Time RAM/Feature Toggles (`LHR_RamConfig.h`, v1.3+)
+
+Separate from the runtime defaults above, `LHR_RamConfig.h` offers compile-time feature toggles that trade functionality for static RAM, intended for RAM-constrained targets (e.g. classic AVR Arduinos). All toggles are enabled by default and are edited directly in that file (no sketch-side configuration).
+
+| Toggle | Default | RAM cost when enabled | Effect when disabled |
+| :--- | :--- | :--- | :--- |
+| `LHR_ENABLE_OWN_DATA_BUFFER` | enabled | ~248 bytes | `sendData()` returns `LHR_ERR_BUSY` whenever any transmission — own or forwarded — is already in progress, instead of queuing one local packet (v1.2.0 behavior; see §3.1). |
+
 
 ---
 
@@ -1024,6 +1052,7 @@ typedef void (*LHR_DataReceivedCallback)(uint8_t* buf, size_t len);
 | `uint32_t getBestNeighborId() const` | Current next-hop neighbor's Node ID, or `LHR_FORBIDDEN_NODE_ID` if none. |
 | `uint32_t getSecondBestNeighborId() const` | Second-best routing neighbor's Node ID; falls back to the best neighbor if no distinct second-best exists. |
 | `bool isBusy() const` | Whether the node can currently accept a new transmission. |
+| `unsigned long getNextUpdateInMs() const` | Returns the time in ms until `update()` must be called again, or 0 if it should be called immediately. Relevant only for applications that sleep between calls; see §8 and Appendix B. |
 | `void onDataReceived(LHR_DataReceivedCallback cb)` | Registers the callback invoked on Home when a DATA packet arrives. Buffer is valid only for the duration of the call. |
 | `lhr_err_t setEncryptionKey(const uint8_t* key, size_t len)` | Sets the AES-128 PSK (16 bytes exactly). Does not itself enable encryption. Compiled out unless `LHR_ENCRYPTION_SUPPORTED`. |
 | `lhr_err_t enableEncryption(bool state)` | Enables/disables Encryption Mode. Enabling requires a key already set (`LHR_ERR_NO_KEY_SET` otherwise); disabling always succeeds. Compiled out unless `LHR_ENCRYPTION_SUPPORTED`. |
