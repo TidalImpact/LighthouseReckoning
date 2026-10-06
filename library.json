@@ -23,7 +23,10 @@
     "url": "https://github.com/TidalImpact/LighthouseReckoning.git"
   },
   "license": "MIT",
-  "frameworks": "arduino",
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
   "platforms": [
     "espressif32",
     "raspberrypi"
