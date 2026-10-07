@@ -74,7 +74,7 @@
 // compiled out.
 //
 
-#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || \
+#if defined(ESP_PLATFORM) || defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || \
     defined(ARDUINO_ARCH_RP2040) || defined(PICO_RP2040) || defined(PICO_RP2350)
   #define LHR_ENCRYPTION_SUPPORTED 1
 #else
