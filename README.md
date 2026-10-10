@@ -1,7 +1,7 @@
 # Lighthouse Reckoning
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.2.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.3.0-informational.svg)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20%7C%20RP2040%20%7C%20ESP32-lightgrey.svg)
 ![RadioLib](https://img.shields.io/badge/built%20on-RadioLib-orange.svg)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22033929-blue.svg)](https://doi.org/10.5281/zenodo.22033929)
@@ -75,6 +75,8 @@ like `sendData()`, `update()` and `onDataReceived()`
 - Optional AES-128-CCM encryption and per-hop authentication, with a compact wire format
 - Optional duty cycle budgeting depending on region regulations
 - Compact wire format with a 2-byte minimum packet size and a 16-byte DATA header (23 bytes encrypted). The library has no dependencies beyond RadioLib.
+- Power-aware scheduling: `getNextUpdateInMs()` tells the application how long it may sleep before `update()` is needed again, while DIO1 interrupts still wake it early for incoming packets
+- Optional single-slot queue for locally originated data, so `sendData()` can accept a packet while a forwarding cycle is active (toggle `LHR_ENABLE_OWN_DATA_BUFFER` in `LHR_RamConfig.h`)
 
 ## Architecture
 
@@ -142,6 +144,9 @@ sketches see [`examples/`](examples), e.g.
 Sensor/Relay node and [`examples/RP2040/HomeNode`](examples/RP2040/HomeNode)
 for the Home node (ESP32 equivalents live under
 [`examples/ESP32`](examples/ESP32)).
+For battery-powered nodes, replace the fixed `loop()` polling with the
+sleep-aware pattern from [`examples/RP2040/SleepyNode`](examples/RP2040/SleepyNode)
+(or `examples/ESP32/SleepyNode`), which uses `getNextUpdateInMs()`.
 
 ```cpp
 #include <RadioLib.h>
@@ -169,9 +174,10 @@ void setup() {
 void loop() {
   lhr.update();   // call this on every loop iteration, it's non-blocking
 
-  // sendData() should NOT be called every loop iteration — it would be
-  // rejected with LHR_ERR_BUSY while a previous packet is still awaiting
-  // confirmation. Send on your own interval instead:
+  // sendData() should NOT be called every loop iteration — while a
+  // previous packet is still awaiting confirmation, a second call is
+  // queued in a single extra slot (if LHR_ENABLE_OWN_DATA_BUFFER is on)
+  // and a third would return LHR_ERR_BUSY. Send on your own interval:
   static unsigned long lastSendMs = 0;
   if (millis() - lastSendMs >= 60000) {   // e.g. once every 60s
     uint8_t payload[] = { 0x01, 0x02, 0x03 };
@@ -202,6 +208,7 @@ above work out of the box without touching any of this.
 | Duty cycle limiting | `toggleDutyCycleLimit()` / `setDutyCycleLimit()` | off; 1 % (EU868) when enabled |
 | Encryption key | `setEncryptionKey()` | none set |
 | Encryption enabled | `enableEncryption()` | off |
+| Own-data queue slot | `LHR_ENABLE_OWN_DATA_BUFFER` in `LHR_RamConfig.h` | enabled (~248 bytes RAM) |
 
 ## Documentation
 
@@ -253,7 +260,7 @@ This project is licensed under the [MIT License](LICENSE).
 If you use Lighthouse Reckoning in academic or research work, please cite
 it via its archived Zenodo record:
 
-[https://doi.org/10.5281/zenodo.22033930](https://doi.org/10.5281/zenodo.22033929)
+[https://doi.org/10.5281/zenodo.22033929](https://doi.org/10.5281/zenodo.22033929)
 
 ## Research Use
 
