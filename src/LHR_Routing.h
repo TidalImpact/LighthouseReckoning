@@ -3,7 +3,7 @@
  * File:       LHR_Routing.h
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.2.0
+ * Version:    1.3.0
  * Platform:   Any (Arduino / RP2040 / ESP32)
  * Description:
  *   Neighbor table management and next-hop selection logic.

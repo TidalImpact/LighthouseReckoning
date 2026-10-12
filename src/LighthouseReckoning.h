@@ -3,7 +3,7 @@
  * File:       LighthouseReckoning.h
  * Author:     Fynn Jannis Schulz
  * Co-Design:  Jan Schulz
- * Version:    1.2.0
+ * Version:    1.3.0
  * Platform:   Validated on SX126x-family radios (e.g. SX1262). Other
  *             RadioLib-supported chips (SX127x/RFM9x, SX128x, etc.) are
  *             expected to work for TX/RX, but channel-activity detection
@@ -80,7 +80,7 @@
 // ================================================================
 
 #define LHR_VERSION_MAJOR (1)
-#define LHR_VERSION_MINOR (2)
+#define LHR_VERSION_MINOR (3)
 #define LHR_VERSION_PATCH (0)
 
 
@@ -110,7 +110,7 @@ public:
     }
     
     /**
-     * @brief Get the library version as a human-readable string (e.g. "1.2.0").
+     * @brief Get the library version as a human-readable string (e.g. "1.3.0").
      * @return Pointer to a static, null-terminated version string.
      */
     static const char* getVersionString() {
