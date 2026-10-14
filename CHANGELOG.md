@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-10-16
+
+### Added
+
+* `getNextUpdateInMs()` for power-aware scheduling: returns how long the application may wait before `update()` must be called again (0 if immediately). DIO1 interrupts still wake the node early for incoming packets. See the `SleepyNode` examples for ESP32 and RP2040.
+* Single-slot queue for locally originated data: while a forwarding or retry cycle is active, one `sendData()` call is queued and sent once the cycle ends, instead of returning `LHR_ERR_BUSY`. A second call while the slot is occupied still returns `LHR_ERR_BUSY`. Only locally originated data is queued; relayed packets are not affected.
+* Compile-time RAM toggles in `LHR_RamConfig.h`. Currently one toggle: `LHR_ENABLE_OWN_DATA_BUFFER` (enabled by default, ~248 bytes RAM; disable on RAM-constrained boards).
+* `SleepyNode` examples for ESP32 and RP2040.
+* `espidf` listed as supported framework in `library.json`.
+
+### Changed
+
+* `isBusy()` returns `true` only when a transmission is in progress, or when a forward cycle is active and the own-data slot is occupied (with the toggle enabled). Behavior without the toggle is unchanged.
+* `sendData()` documentation updated to describe the queuing behavior.
+
+### Fixed
+
+* ESP32 encryption support is now detected via `ESP_PLATFORM` in addition to the existing macros.
+
+### Known Limitations
+
+* The own-data queue holds exactly one packet. Multiple pending packets are intentionally not supported; relayed packets are not queued, to avoid head-of-line blocking and unnecessary RAM use in the mesh.
+* Retry tracking is still global (one retry cycle at a time), not per packet.
+
 ## [1.2.0] - 2026-09-22
 
 ### Added
